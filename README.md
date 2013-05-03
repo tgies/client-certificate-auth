@@ -8,6 +8,8 @@ Copyright © 2013 Tony Gies
 
 April 30, 2013
 
+[![Build Status](https://travis-ci.org/tgies/client-certificate-auth.png)](https://travis-ci.org/tgies/client-certificate-auth)
+
 synopsis
 --------
 
