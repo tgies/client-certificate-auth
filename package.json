@@ -1,13 +1,21 @@
 {
   "name": "client-certificate-auth",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "middleware for Node.js implementing client SSL certificate authentication/authorization",
+  "homepage": "https://github.com/tgies/client-certificate-auth",
+  "bugs": { "url": "https://github.com/tgies/client-certificate-auth/issues" },
   "main": "index.js",
+  "engines": { "node": ">= 0.6.x" },
+  "devDependencies": {
+    "mocha": "1.9.x",
+    "should": "1.2.x"
+  },
   "directories": {
-    "test": "test"
+    "lib": "./lib",
+    "test": "./test"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "mocha test/test-*"
   },
   "repository": {
     "type": "git",
@@ -20,8 +28,7 @@
     "connect",
     "middleware"
   ],
-  "author": "Tony Gies <tony.gies@gruppe86.net>",
+  "author": "Tony Gies <tony.gies@gruppe86.net> (https://github.com/tgies)",
   "license": "MIT",
-  "readmeFilename": "README.md",
-  "gitHead": "4ddbab4652b6a762d8de79d6541027351f0e3166"
+  "readmeFilename": "README.md"
 }
