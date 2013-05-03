@@ -11,7 +11,7 @@ April 30, 2013
 synopsis
 --------
 
-client-certificate-auth provides middleware for Node.js (in particular
+client-certificate-auth provides HTTP middleware for Node.js (in particular
 Connect/Express) to require that a valid, verifiable client SSL certificate is
 provided, and passes information about that certificate to a callback which must
 return `true` for the request to proceed; otherwise, the client is considered 
