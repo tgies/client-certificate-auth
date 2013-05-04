@@ -36,8 +36,8 @@ describe('clientCertificateAuth', function() {
 
   describe('(clientCertificateAuth(cb))(req, res, next)', function() {
     /*
-     * the objects mockGoodReq, mockUnsecureReq, and mockUnauthReq imitate the
-     * expected properties and behavior of the real req object of the type
+     * The objects mockGoodReq, mockUnsecureReq, and mockUnauthReq imitate the
+     * expected properties and behavior of the real request object of the type
      * supported by this software, in the case of a secure and authorized
      * request; an unsecure (cleartext) request; and a secure but unauthorized
      * (untrusted or absent client certificate) request, respectively.
@@ -50,13 +50,13 @@ describe('clientCertificateAuth', function() {
 
     var mockUnsecureReq = {
       secure: false,
-      client: { authorized: false, },
+      client: { authorized: false },
       connection: { getPeerCertificate: function() { return {}; } }
     };
 
     var mockUnauthReq = {
       secure: true,
-      client: { authorized: false, },
+      client: { authorized: false },
       connection: { getPeerCertificate: getMockPeerCertificate }
     };
 
