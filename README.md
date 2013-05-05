@@ -10,6 +10,13 @@ April 30, 2013
 
 [![Build Status](https://travis-ci.org/tgies/client-certificate-auth.png)](https://travis-ci.org/tgies/client-certificate-auth)
 
+installing
+----------
+
+client-certificate-auth is available from [npm](http://npmjs.org).
+
+    $ npm install client-certificate-auth
+
 synopsis
 --------
 
