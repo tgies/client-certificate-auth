@@ -27,7 +27,7 @@ var getMockPeerCertificate = function() {
 
 describe('clientCertificateAuth', function() {
   it('should be a function taking one argument', function() {
-    clientCertificateAuth.should.be.a('function').and.have.lengthOf(1);
+    clientCertificateAuth.should.be.a('function').and.have.lengthOf(2);
   });
 
   it('should return a function taking three arguments -- the middleware', function() {
@@ -60,6 +60,12 @@ describe('clientCertificateAuth', function() {
       connection: { getPeerCertificate: getMockPeerCertificate }
     };
 
+    var mockUnauthorizedWithCertificateReq = {
+      secure: true,
+      client: { authorized: false },
+      connection: { getPeerCertificate: getMockPeerCertificate }
+    };
+
     var mockRes = {};
 
     describe('when the request is secure and the client certificate validates', function() {
@@ -85,6 +91,15 @@ describe('clientCertificateAuth', function() {
           e.should.be.an.instanceOf(Error).and.have.property('status', 401);
           done();
         });
+      });
+    });
+
+    describe('when connection is unauthorized but the client has a certificate', function() {
+      it('should call next to pass control successfully if cb(cert) returns true', function(done) {
+        (clientCertificateAuth(
+          { rejectUnauthorized: false },
+          function() { return true; }
+        ))(mockUnauthorizedWithCertificateReq, mockRes, done);
       });
     });
   });
