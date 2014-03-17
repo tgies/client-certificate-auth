@@ -91,6 +91,14 @@ var checkAuth = function(cert) {
 https.createServer(opts, app).listen(4000);
 ```
 
+If you want to accept certificates which weren't successfully authorized
+(e.g. self-signed certificates, certificates from untrusted CAs), you can
+pass `rejectUnauthorized: false`:
+
+```javascript
+clientCertificateAuth({ rejectUnauthorized: false }, checkAuth);
+```
+
 Or secure only certain routes:
 
 ```javascript
