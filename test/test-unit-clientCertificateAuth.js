@@ -71,6 +71,10 @@ describe('clientCertificateAuth', function() {
         (clientCertificateAuth(function() { return true; }))(mockGoodReq, mockRes, done);
       });
 
+      it('should call next() to pass control successfully if async cb(cert) returns true', function(done) {
+        (clientCertificateAuth(function(cert, callback) { callback(true); }))(mockGoodReq, mockRes, done);
+      });
+
       it('should pass a 401 error to next() if cb(cert) returns false', function(done) {
         (clientCertificateAuth(function() { return false; }))(mockGoodReq, mockRes, function(e) {
           e.should.be.an.instanceOf(Error).and.have.property('status', 401);
