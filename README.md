@@ -102,3 +102,13 @@ app.get('/secure', clientCertificateAuth(checkAuth), function(req, res) {
   res.send('Hello authorized user');
 });
 ```
+
+`checkAuth` can also be asynchronous:
+
+```javascript
+function checkAuth(cert, callback) {
+  callback(true);
+}
+
+app.use(checkAuth);
+```
