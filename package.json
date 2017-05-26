@@ -1,10 +1,10 @@
 {
-  "name": "client-certificate-auth",
-  "version": "0.3.0",
+  "name": "client-certificate-auth-v2",
+  "version": "0.3.3",
   "description": "middleware for Node.js implementing client SSL certificate authentication/authorization",
-  "homepage": "https://github.com/tgies/client-certificate-auth",
+  "homepage": "https://github.com/abhishek2244/client-certificate-auth",
   "bugs": {
-    "url": "https://github.com/tgies/client-certificate-auth/issues"
+    "url": "https://github.com/abhishek2244/client-certificate-auth/issues"
   },
   "main": "index.js",
   "engines": {
@@ -23,7 +23,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/tgies/client-certificate-auth.git"
+    "url": "https://github.com/abhishek2244/client-certificate-auth.git"
   },
   "keywords": [
     "authentication",
@@ -32,7 +32,7 @@
     "connect",
     "middleware"
   ],
-  "author": "Tony Gies <tony.gies@gruppe86.net> (https://github.com/tgies)",
+  "author": "Abhishek Singh <vamp2244@gmail.com> (https://github.com/abhishek2244)",
   "license": "MIT",
   "readmeFilename": "README.md"
 }
