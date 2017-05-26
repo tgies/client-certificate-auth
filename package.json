@@ -1,6 +1,6 @@
 {
   "name": "client-certificate-auth-v2",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "middleware for Node.js implementing client SSL certificate authentication/authorization",
   "homepage": "https://github.com/abhishek2244/client-certificate-auth",
   "bugs": {
