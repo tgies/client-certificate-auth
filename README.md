@@ -111,4 +111,5 @@ function checkAuth(cert, callback) {
 app.use(checkAuth);
 ```
 
-`Note: If you are using this module for Client Side Certificate Authentication then inside opts variable for `<strong>cert</strong>` use a chained certificate and in ca use your custom `<strong>ca</strong>` which you have used to sign the client certificate.`
+###Note:
+`If you are using this module for Client Side Certificate Authentication then inside opts variable for `<strong>cert</strong>` use a chained certificate and in `<strong>ca</strong>` use your custom CA which you have used to sign the client certificate.`
