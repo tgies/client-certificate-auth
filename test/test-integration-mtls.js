@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import https from 'node:https';
-import selfsigned from 'selfsigned';
 import clientCertificateAuth from '../lib/clientCertificateAuth.js';
+import { generateMtlsCertificates } from './test-helpers.js';
 
 /**
  * Integration tests that establish real mTLS connections.
@@ -15,59 +15,17 @@ describe('mTLS Integration', () => {
     let serverPort;
 
     beforeAll(async () => {
-        // Step 1: Generate a CA certificate
-        caPems = await selfsigned.generate(
-            [{ name: 'commonName', value: 'Test CA' }],
-            {
-                algorithm: 'sha256',
-                keySize: 2048,
-                days: 1,
-                extensions: [
-                    { name: 'basicConstraints', cA: true, critical: true },
-                    { name: 'keyUsage', keyCertSign: true, cRLSign: true, critical: true },
-                ],
-            }
-        );
-
-        // Step 2: Generate a server certificate signed by the CA
-        serverPems = await selfsigned.generate(
-            [{ name: 'commonName', value: 'localhost' }],
-            {
-                algorithm: 'sha256',
-                keySize: 2048,
-                days: 1,
-                ca: { key: caPems.private, cert: caPems.cert },
-                extensions: [
-                    { name: 'basicConstraints', cA: false, critical: true },
-                    { name: 'keyUsage', digitalSignature: true, keyEncipherment: true, critical: true },
-                    { name: 'extKeyUsage', serverAuth: true },
-                    { name: 'subjectAltName', altNames: [{ type: 2, value: 'localhost' }, { type: 7, ip: '127.0.0.1' }] },
-                ],
-            }
-        );
-
-        // Step 3: Generate a client certificate signed by the CA
-        clientPems = await selfsigned.generate(
-            [{ name: 'commonName', value: 'Test Client' }],
-            {
-                algorithm: 'sha256',
-                keySize: 2048,
-                days: 1,
-                ca: { key: caPems.private, cert: caPems.cert },
-                extensions: [
-                    { name: 'basicConstraints', cA: false, critical: true },
-                    { name: 'keyUsage', digitalSignature: true, critical: true },
-                    { name: 'extKeyUsage', clientAuth: true },
-                ],
-            }
-        );
+        const certs = await generateMtlsCertificates();
+        caPems = certs.ca;
+        serverPems = certs.server;
+        clientPems = certs.client;
     });
 
     beforeEach(done => {
         // Create HTTPS server with mTLS configuration
         server = https.createServer(
             {
-                key: serverPems.private,
+                key: serverPems.key,
                 cert: serverPems.cert,
                 // Trust the CA that signed the client certificates
                 ca: [caPems.cert],
@@ -109,7 +67,7 @@ describe('mTLS Integration', () => {
             port: serverPort,
             path: '/',
             method: 'GET',
-            key: clientPems.private,
+            key: clientPems.key,
             cert: clientPems.cert,
             ca: [caPems.cert],
             rejectUnauthorized: true,
@@ -162,7 +120,7 @@ describe('mTLS Integration', () => {
             server.close(() => {
                 server = https.createServer(
                     {
-                        key: serverPems.private,
+                        key: serverPems.key,
                         cert: serverPems.cert,
                         ca: [caPems.cert],
                         requestCert: true,
@@ -194,7 +152,7 @@ describe('mTLS Integration', () => {
                         port: serverPort,
                         path: '/',
                         method: 'GET',
-                        key: clientPems.private,
+                        key: clientPems.key,
                         cert: clientPems.cert,
                         ca: [caPems.cert],
                         rejectUnauthorized: true,
@@ -222,7 +180,7 @@ describe('mTLS Integration', () => {
         server.close(() => {
             server = https.createServer(
                 {
-                    key: serverPems.private,
+                    key: serverPems.key,
                     cert: serverPems.cert,
                     ca: [caPems.cert],
                     requestCert: true,
@@ -255,7 +213,7 @@ describe('mTLS Integration', () => {
                     port: serverPort,
                     path: '/',
                     method: 'GET',
-                    key: clientPems.private,
+                    key: clientPems.key,
                     cert: clientPems.cert,
                     ca: [caPems.cert],
                     rejectUnauthorized: true,

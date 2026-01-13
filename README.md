@@ -92,6 +92,10 @@ Returns Express middleware.
 |------|------|-------------|
 | `callback` | `(cert) => boolean \| Promise<boolean>` | Receives the client certificate, returns `true` to allow access |
 | `options.redirectInsecure` | `boolean` | If `true`, redirect HTTP → HTTPS (default: `false`) |
+| `options.certificateSource` | `string` | Use a preset for a known proxy: `'aws-alb'`, `'envoy'`, `'cloudflare'`, `'traefik'` |
+| `options.certificateHeader` | `string` | Custom header name to read certificate from |
+| `options.headerEncoding` | `string` | Encoding format: `'url-pem'`, `'url-pem-aws'`, `'xfcc'`, `'base64-der'`, `'rfc9440'` |
+| `options.fallbackToSocket` | `boolean` | If header extraction fails, try `socket.getPeerCertificate()` (default: `false`) |
 
 **Certificate Object:**
 
@@ -102,6 +106,110 @@ The `cert` parameter contains fields from [`tls.PeerCertificate`](https://nodejs
 - `issuer` - Issuer information
 - `fingerprint` - Certificate fingerprint
 - `valid_from`, `valid_to` - Validity period
+
+## Reverse Proxy / Load Balancer Support
+
+When your application runs behind a TLS-terminating reverse proxy, the client certificate is available via HTTP headers instead of the TLS socket. This middleware supports reading certificates from headers for common proxies.
+
+### Using Presets
+
+For common proxies, use the `certificateSource` option:
+
+```javascript
+// AWS Application Load Balancer
+app.use(clientCertificateAuth(checkAuth, {
+  certificateSource: 'aws-alb'
+}));
+
+// Envoy / Istio
+app.use(clientCertificateAuth(checkAuth, {
+  certificateSource: 'envoy'
+}));
+
+// Cloudflare
+app.use(clientCertificateAuth(checkAuth, {
+  certificateSource: 'cloudflare'
+}));
+
+// Traefik
+app.use(clientCertificateAuth(checkAuth, {
+  certificateSource: 'traefik'
+}));
+```
+
+### Preset Details
+
+| Preset | Header | Encoding |
+|--------|--------|----------|
+| `aws-alb` | `X-Amzn-Mtls-Clientcert` | URL-encoded PEM (AWS variant) |
+| `envoy` | `X-Forwarded-Client-Cert` | XFCC structured format |
+| `cloudflare` | `Cf-Client-Cert-Der-Base64` | Base64-encoded DER |
+| `traefik` | `X-Forwarded-Tls-Client-Cert` | Base64-encoded DER |
+
+### Custom Headers
+
+For nginx, HAProxy, Google Cloud Load Balancer, or other proxies with configurable headers:
+
+```javascript
+// nginx with $ssl_client_escaped_cert
+app.use(clientCertificateAuth(checkAuth, {
+  certificateHeader: 'X-SSL-Client-Cert',
+  headerEncoding: 'url-pem'
+}));
+
+// Google Cloud Load Balancer (RFC 9440)
+app.use(clientCertificateAuth(checkAuth, {
+  certificateHeader: 'Client-Cert',
+  headerEncoding: 'rfc9440'
+}));
+
+// HAProxy with base64 DER
+app.use(clientCertificateAuth(checkAuth, {
+  certificateHeader: 'X-SSL-Client-Cert',
+  headerEncoding: 'base64-der'
+}));
+```
+
+### Encoding Formats
+
+| Encoding | Description | Used By |
+|----------|-------------|---------|
+| `url-pem` | URL-encoded PEM certificate | nginx, HAProxy |
+| `url-pem-aws` | URL-encoded PEM (AWS variant, `+` as safe char) | AWS ALB |
+| `xfcc` | Envoy's structured `Key=Value;...` format | Envoy, Istio |
+| `base64-der` | Base64-encoded DER certificate | Cloudflare, Traefik |
+| `rfc9440` | RFC 9440 format: `:base64-der:` | Google Cloud LB |
+
+### Fallback Mode
+
+If your proxy might not always forward certificates (e.g., direct connections bypass the proxy), enable fallback:
+
+```javascript
+app.use(clientCertificateAuth(checkAuth, {
+  certificateSource: 'aws-alb',
+  fallbackToSocket: true  // Try socket if header missing
+}));
+```
+
+### Security Considerations
+
+> ⚠️ **Important:** When using header-based authentication, your reverse proxy **must** strip any incoming certificate headers from external requests to prevent spoofing.
+
+Configure your proxy to:
+1. **Strip** the certificate header from incoming requests
+2. **Set** the header only for authenticated mTLS connections
+3. **Never** trust certificate headers from untrusted sources
+
+Example nginx configuration:
+```nginx
+# Strip any existing header from clients
+proxy_set_header X-SSL-Client-Cert "";
+
+# Set header only when client cert is verified
+if ($ssl_client_verify = SUCCESS) {
+    proxy_set_header X-SSL-Client-Cert $ssl_client_escaped_cert;
+}
+```
 
 ## TypeScript
 
@@ -116,6 +224,11 @@ const checkAuth = (cert: PeerCertificate): boolean => {
 };
 
 app.use(clientCertificateAuth(checkAuth));
+
+// With reverse proxy
+app.use(clientCertificateAuth(checkAuth, {
+  certificateSource: 'aws-alb'
+}));
 ```
 
 ## CommonJS
@@ -130,7 +243,9 @@ app.use(clientCertificateAuth((cert) => cert.subject.CN === 'admin'));
 
 - **Do not use `redirectInsecure: true` in production** — the initial HTTP request can be intercepted
 - Set `rejectUnauthorized: false` on your HTTPS server to let this middleware provide helpful error messages, rather than dropping connections silently
+- **When using header-based auth**, ensure your proxy strips certificate headers from external requests
 
 ## License
 
 MIT © Tony Gies
+

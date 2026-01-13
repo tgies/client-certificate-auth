@@ -250,5 +250,112 @@ describe('clientCertificateAuth', () => {
         });
       });
     });
+
+    describe('header-based certificate extraction', () => {
+      let testPem;
+
+      beforeAll(async () => {
+        const selfsigned = (await import('selfsigned')).default;
+        const testCert = await selfsigned.generate(
+          [{ name: 'commonName', value: 'Header Test Client' }],
+          {
+            algorithm: 'sha256',
+            keySize: 2048,
+            days: 1,
+            extensions: [
+              { name: 'basicConstraints', cA: false, critical: true },
+              { name: 'extKeyUsage', clientAuth: true },
+            ],
+          }
+        );
+        testPem = testCert.cert;
+      });
+
+      it('should extract certificate from header using certificateSource preset', done => {
+        const encodedCert = encodeURIComponent(testPem)
+          .replace(/%2B/g, '+')
+          .replace(/%3D/g, '=')
+          .replace(/%2F/g, '/');
+
+        const req = {
+          secure: false,
+          socket: { authorized: false },
+          headers: {
+            'x-amzn-mtls-clientcert': encodedCert
+          }
+        };
+
+        const middleware = clientCertificateAuth((cert) => {
+          assert.ok(cert);
+          assert.equal(cert.subject.CN, 'Header Test Client');
+          return true;
+        }, { certificateSource: 'aws-alb' });
+
+        middleware(req, mockRes, (err) => {
+          assert.equal(err, undefined);
+          done();
+        });
+      });
+
+      it('should return 401 if header is missing and no fallback', done => {
+        const req = {
+          secure: false,
+          socket: { authorized: false },
+          headers: {}
+        };
+
+        const middleware = clientCertificateAuth(() => true, {
+          certificateSource: 'aws-alb'
+        });
+
+        middleware(req, mockRes, (err) => {
+          assert.ok(err instanceof Error);
+          assert.equal(err.status, 401);
+          assert.ok(err.message.includes('header missing or malformed'));
+          done();
+        });
+      });
+
+      it('should fallback to socket if header missing and fallbackToSocket is true', done => {
+        const middleware = clientCertificateAuth((cert) => {
+          assert.equal(cert.subject.CN, 'Proctor Davenport');
+          return true;
+        }, {
+          certificateSource: 'aws-alb',
+          fallbackToSocket: true
+        });
+
+        middleware(mockGoodReq, mockRes, (err) => {
+          assert.equal(err, undefined);
+          done();
+        });
+      });
+
+      it('should use custom header with custom encoding', done => {
+        const encodedCert = encodeURIComponent(testPem);
+
+        const req = {
+          secure: false,
+          socket: { authorized: false },
+          headers: {
+            'x-custom-cert': encodedCert
+          }
+        };
+
+        const middleware = clientCertificateAuth((cert) => {
+          assert.ok(cert);
+          assert.equal(cert.subject.CN, 'Header Test Client');
+          return true;
+        }, {
+          certificateHeader: 'X-Custom-Cert',
+          headerEncoding: 'url-pem'
+        });
+
+        middleware(req, mockRes, (err) => {
+          assert.equal(err, undefined);
+          done();
+        });
+      });
+    });
   });
 });
