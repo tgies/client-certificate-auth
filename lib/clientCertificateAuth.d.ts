@@ -24,6 +24,11 @@ export interface ClientCertRequest extends IncomingMessage {
         /** Error message if authorization failed */
         authorizationError?: string;
     };
+    /**
+     * Client certificate attached by clientCertificateAuth middleware.
+     * Available after successful certificate extraction, before authorization callback.
+     */
+    clientCertificate?: PeerCertificate;
 }
 
 /**

@@ -357,5 +357,109 @@ describe('clientCertificateAuth', () => {
         });
       });
     });
+
+    describe('req.clientCertificate', () => {
+      it('should attach certificate to request on successful auth', done => {
+        const req = { ...mockGoodReq };
+        const middleware = clientCertificateAuth(() => true);
+
+        middleware(req, mockRes, () => {
+          assert.ok(req.clientCertificate, 'clientCertificate should be set');
+          assert.equal(req.clientCertificate.subject.CN, 'Proctor Davenport');
+          assert.equal(req.clientCertificate.fingerprint, 'BA:DA:DD:EA:DB:EE:FC:CC:CC:CC:07:15:19:88:C0:FF:EE:00:12:00');
+          done();
+        });
+      });
+
+      it('should attach certificate even when callback returns false', done => {
+        const req = { ...mockGoodReq };
+        const middleware = clientCertificateAuth(() => false);
+
+        middleware(req, mockRes, (err) => {
+          assert.ok(err instanceof Error);
+          assert.equal(err.status, 401);
+          // Certificate should still be attached for error logging purposes
+          assert.ok(req.clientCertificate, 'clientCertificate should be set even on auth failure');
+          assert.equal(req.clientCertificate.subject.CN, 'Proctor Davenport');
+          done();
+        });
+      });
+
+      it('should attach certificate even when async callback returns false', done => {
+        const req = { ...mockGoodReq };
+        const middleware = clientCertificateAuth(async () => false);
+
+        middleware(req, mockRes, (err) => {
+          assert.ok(err instanceof Error);
+          assert.equal(err.status, 401);
+          assert.ok(req.clientCertificate, 'clientCertificate should be set even on async auth failure');
+          done();
+        });
+      });
+
+      it('should attach certificate when callback throws', done => {
+        const req = { ...mockGoodReq };
+        const middleware = clientCertificateAuth(() => {
+          throw new Error('Auth error');
+        });
+
+        middleware(req, mockRes, (err) => {
+          assert.ok(err instanceof Error);
+          assert.equal(err.message, 'Auth error');
+          assert.ok(req.clientCertificate, 'clientCertificate should be set even on throw');
+          done();
+        });
+      });
+
+      it('should attach certificate extracted from headers', async () => {
+        const selfsigned = (await import('selfsigned')).default;
+        const testCert = await selfsigned.generate(
+          [{ name: 'commonName', value: 'Header Cert Test' }],
+          { algorithm: 'sha256', keySize: 2048, days: 1 }
+        );
+        const encodedCert = encodeURIComponent(testCert.cert);
+
+        const req = {
+          secure: false,
+          socket: { authorized: false },
+          headers: {
+            'x-ssl-client-cert': encodedCert
+          }
+        };
+
+        const middleware = clientCertificateAuth(() => true, {
+          certificateHeader: 'X-SSL-Client-Cert',
+          headerEncoding: 'url-pem'
+        });
+
+        await new Promise((resolve) => {
+          middleware(req, mockRes, () => {
+            assert.ok(req.clientCertificate, 'clientCertificate should be set from header');
+            assert.equal(req.clientCertificate.subject.CN, 'Header Cert Test');
+            resolve();
+          });
+        });
+      });
+
+      it('should not attach certificate if extraction fails (no fallback)', done => {
+        const req = {
+          secure: false,
+          socket: { authorized: false },
+          headers: {}
+        };
+
+        const middleware = clientCertificateAuth(() => true, {
+          certificateSource: 'aws-alb'
+        });
+
+        middleware(req, mockRes, (err) => {
+          assert.ok(err instanceof Error);
+          assert.equal(err.status, 401);
+          // Certificate should NOT be set since extraction failed
+          assert.equal(req.clientCertificate, undefined);
+          done();
+        });
+      });
+    });
   });
 });

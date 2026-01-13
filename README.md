@@ -107,6 +107,23 @@ The `cert` parameter contains fields from [`tls.PeerCertificate`](https://nodejs
 - `fingerprint` - Certificate fingerprint
 - `valid_from`, `valid_to` - Validity period
 
+### Accessing the Certificate
+
+After authentication, the certificate is attached to `req.clientCertificate` for downstream handlers:
+
+```javascript
+app.use(clientCertificateAuth(checkAuth));
+
+app.get('/whoami', (req, res) => {
+  res.json({
+    cn: req.clientCertificate.subject.CN,
+    fingerprint: req.clientCertificate.fingerprint
+  });
+});
+```
+
+The certificate is attached before the authorization callback runs, so it's available even if authorization fails (useful for logging).
+
 ## Reverse Proxy / Load Balancer Support
 
 When your application runs behind a TLS-terminating reverse proxy, the client certificate is available via HTTP headers instead of the TLS socket. This middleware supports reading certificates from headers for common proxies.
@@ -217,6 +234,7 @@ Types are included:
 
 ```typescript
 import clientCertificateAuth from 'client-certificate-auth';
+import type { ClientCertRequest } from 'client-certificate-auth';
 import type { PeerCertificate } from 'tls';
 
 const checkAuth = (cert: PeerCertificate): boolean => {
@@ -224,6 +242,11 @@ const checkAuth = (cert: PeerCertificate): boolean => {
 };
 
 app.use(clientCertificateAuth(checkAuth));
+
+// Access certificate in downstream handlers
+app.get('/whoami', (req: ClientCertRequest, res) => {
+  res.json({ cn: req.clientCertificate?.subject.CN });
+});
 
 // With reverse proxy
 app.use(clientCertificateAuth(checkAuth, {
