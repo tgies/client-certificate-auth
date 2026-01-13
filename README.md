@@ -124,6 +124,7 @@ Returns Express middleware.
 | `options.certificateHeader` | `string` | Custom header name to read certificate from |
 | `options.headerEncoding` | `string` | Encoding format: `'url-pem'`, `'url-pem-aws'`, `'xfcc'`, `'base64-der'`, `'rfc9440'` |
 | `options.fallbackToSocket` | `boolean` | If header extraction fails, try `socket.getPeerCertificate()` (default: `false`) |
+| `options.includeChain` | `boolean` | If `true`, include full certificate chain via `cert.issuerCertificate` (default: `false`) |
 
 **Certificate Object:**
 
@@ -134,6 +135,7 @@ The `cert` parameter contains fields from [`tls.PeerCertificate`](https://nodejs
 - `issuer` - Issuer information
 - `fingerprint` - Certificate fingerprint
 - `valid_from`, `valid_to` - Validity period
+- `issuerCertificate` - Issuer's certificate (only when `includeChain: true`)
 
 ### Accessing the Certificate
 
@@ -151,6 +153,22 @@ app.get('/whoami', (req, res) => {
 ```
 
 The certificate is attached before the authorization callback runs, so it's available even if authorization fails (useful for logging).
+
+### Certificate Chain Access
+
+For enterprise PKI scenarios, you may need to inspect intermediate CAs or the root CA:
+
+```javascript
+app.use(clientCertificateAuth((cert) => {
+  // Check issuer's organization
+  if (cert.issuerCertificate) {
+    return cert.issuerCertificate.subject.O === 'Trusted Root CA';
+  }
+  return false;
+}, { includeChain: true }));
+```
+
+When `includeChain: true`, the certificate object includes `issuerCertificate` linking to the issuer's certificate (and so on up the chain). This works consistently for both socket-based and header-based extraction.
 
 ## Reverse Proxy / Load Balancer Support
 

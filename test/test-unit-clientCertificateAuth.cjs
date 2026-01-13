@@ -315,6 +315,70 @@ describe('clientCertificateAuth (CommonJS)', () => {
                 });
             });
         });
+
+        describe('includeChain option', () => {
+            const getMockIssuerCertificate = () => ({
+                subject: { CN: 'Test CA' },
+                issuer: { CN: 'Test CA' },
+                fingerprint: 'CA:CA:CA:CA:CA:CA:CA:CA:CA:CA:CA:CA:CA:CA:CA:CA:CA:CA:CA:CA'
+            });
+
+            const getMockDetailedCertificate = () => {
+                const cert = getMockPeerCertificate();
+                cert.issuerCertificate = getMockIssuerCertificate();
+                return cert;
+            };
+
+            it('should not include issuerCertificate by default', done => {
+                const req = {
+                    secure: true,
+                    socket: {
+                        authorized: true,
+                        getPeerCertificate: (detailed) => {
+                            return detailed ? getMockDetailedCertificate() : getMockPeerCertificate();
+                        }
+                    },
+                    headers: {}
+                };
+
+                const middleware = clientCertificateAuth((cert) => {
+                    assert.equal(cert.issuerCertificate, undefined, 'issuerCertificate should not be present by default');
+                    return true;
+                });
+
+                middleware(req, mockRes, (err) => {
+                    assert.equal(err, undefined);
+                    assert.equal(req.clientCertificate.issuerCertificate, undefined);
+                    done();
+                });
+            });
+
+            it('should include issuerCertificate when includeChain is true', done => {
+                const req = {
+                    secure: true,
+                    socket: {
+                        authorized: true,
+                        getPeerCertificate: (detailed) => {
+                            return detailed ? getMockDetailedCertificate() : getMockPeerCertificate();
+                        }
+                    },
+                    headers: {}
+                };
+
+                const middleware = clientCertificateAuth((cert) => {
+                    assert.ok(cert.issuerCertificate, 'issuerCertificate should be present');
+                    assert.equal(cert.issuerCertificate.subject.CN, 'Test CA');
+                    return true;
+                }, { includeChain: true });
+
+                middleware(req, mockRes, (err) => {
+                    assert.equal(err, undefined);
+                    assert.ok(req.clientCertificate.issuerCertificate);
+                    assert.equal(req.clientCertificate.issuerCertificate.subject.CN, 'Test CA');
+                    done();
+                });
+            });
+        });
     });
 
     describe('load() async ESM loader', () => {

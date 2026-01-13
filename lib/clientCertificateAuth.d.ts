@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'http';
-import type { TLSSocket, PeerCertificate } from 'tls';
+import type { TLSSocket, PeerCertificate, DetailedPeerCertificate } from 'tls';
 import type { CertificateSource, HeaderEncoding } from './parsers.js';
 
 export type { CertificateSource, HeaderEncoding };
@@ -27,8 +27,9 @@ export interface ClientCertRequest extends IncomingMessage {
     /**
      * Client certificate attached by clientCertificateAuth middleware.
      * Available after successful certificate extraction, before authorization callback.
+     * Contains issuerCertificate chain if includeChain option is true.
      */
-    clientCertificate?: PeerCertificate;
+    clientCertificate?: PeerCertificate | DetailedPeerCertificate;
 }
 
 /**
@@ -71,9 +72,16 @@ export interface ClientCertificateAuthOptions {
      * @default false
      */
     fallbackToSocket?: boolean;
+
+    /**
+     * If true, include the full certificate chain via cert.issuerCertificate.
+     * Applies to both socket and header-based extraction.
+     * @default false
+     */
+    includeChain?: boolean;
 }
 
-export type ValidationCallback = (cert: PeerCertificate) => boolean | Promise<boolean>;
+export type ValidationCallback = (cert: PeerCertificate | DetailedPeerCertificate) => boolean | Promise<boolean>;
 
 export type Middleware = (
     req: ClientCertRequest,

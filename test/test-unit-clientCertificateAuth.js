@@ -513,5 +513,140 @@ describe('clientCertificateAuth', () => {
         });
       });
     });
+
+    describe('includeChain option', () => {
+      const getMockIssuerCertificate = () => ({
+        subject: { CN: 'Test CA' },
+        issuer: { CN: 'Test CA' },
+        fingerprint: 'CA:CA:CA:CA:CA:CA:CA:CA:CA:CA:CA:CA:CA:CA:CA:CA:CA:CA:CA:CA'
+      });
+
+      const getMockDetailedCertificate = () => {
+        const cert = getMockPeerCertificate();
+        cert.issuerCertificate = getMockIssuerCertificate();
+        return cert;
+      };
+
+      it('should not include issuerCertificate by default (socket)', done => {
+        const req = {
+          secure: true,
+          socket: {
+            authorized: true,
+            getPeerCertificate: (detailed) => {
+              // Simulate Node.js behavior: getPeerCertificate(true) returns chain
+              return detailed ? getMockDetailedCertificate() : getMockPeerCertificate();
+            }
+          },
+          headers: {}
+        };
+
+        const middleware = clientCertificateAuth((cert) => {
+          assert.equal(cert.issuerCertificate, undefined, 'issuerCertificate should not be present by default');
+          return true;
+        });
+
+        middleware(req, mockRes, (err) => {
+          assert.equal(err, undefined);
+          assert.equal(req.clientCertificate.issuerCertificate, undefined);
+          done();
+        });
+      });
+
+      it('should include issuerCertificate when includeChain is true (socket)', done => {
+        const req = {
+          secure: true,
+          socket: {
+            authorized: true,
+            getPeerCertificate: (detailed) => {
+              return detailed ? getMockDetailedCertificate() : getMockPeerCertificate();
+            }
+          },
+          headers: {}
+        };
+
+        const middleware = clientCertificateAuth((cert) => {
+          assert.ok(cert.issuerCertificate, 'issuerCertificate should be present');
+          assert.equal(cert.issuerCertificate.subject.CN, 'Test CA');
+          return true;
+        }, { includeChain: true });
+
+        middleware(req, mockRes, (err) => {
+          assert.equal(err, undefined);
+          assert.ok(req.clientCertificate.issuerCertificate);
+          assert.equal(req.clientCertificate.issuerCertificate.subject.CN, 'Test CA');
+          done();
+        });
+      });
+
+      it('should strip issuerCertificate from header-parsed certs by default', async () => {
+        const selfsigned = (await import('selfsigned')).default;
+        const testCert = await selfsigned.generate(
+          [{ name: 'commonName', value: 'Chain Strip Test' }],
+          { algorithm: 'sha256', keySize: 2048, days: 1 }
+        );
+
+        // Simulate Traefik comma-separated chain (two certs)
+        const certDer = Buffer.from(testCert.cert.replace(/-----BEGIN CERTIFICATE-----/, '')
+          .replace(/-----END CERTIFICATE-----/, '').replace(/\n/g, ''), 'base64');
+        const base64Cert = certDer.toString('base64');
+        // Create a fake chain with same cert twice
+        const chainHeader = `${base64Cert},${base64Cert}`;
+
+        const req = {
+          secure: false,
+          socket: { authorized: false },
+          headers: {
+            'x-forwarded-tls-client-cert': chainHeader
+          }
+        };
+
+        const middleware = clientCertificateAuth((cert) => {
+          // Without includeChain, issuerCertificate should be stripped
+          assert.equal(cert.issuerCertificate, undefined, 'issuerCertificate should be stripped');
+          return true;
+        }, { certificateSource: 'traefik' });
+
+        await new Promise((resolve) => {
+          middleware(req, mockRes, () => {
+            assert.equal(req.clientCertificate.issuerCertificate, undefined);
+            resolve();
+          });
+        });
+      });
+
+      it('should preserve issuerCertificate in header-parsed certs when includeChain is true', async () => {
+        const selfsigned = (await import('selfsigned')).default;
+        const testCert = await selfsigned.generate(
+          [{ name: 'commonName', value: 'Chain Preserve Test' }],
+          { algorithm: 'sha256', keySize: 2048, days: 1 }
+        );
+
+        const certDer = Buffer.from(testCert.cert.replace(/-----BEGIN CERTIFICATE-----/, '')
+          .replace(/-----END CERTIFICATE-----/, '').replace(/\n/g, ''), 'base64');
+        const base64Cert = certDer.toString('base64');
+        const chainHeader = `${base64Cert},${base64Cert}`;
+
+        const req = {
+          secure: false,
+          socket: { authorized: false },
+          headers: {
+            'x-forwarded-tls-client-cert': chainHeader
+          }
+        };
+
+        const middleware = clientCertificateAuth((cert) => {
+          // With includeChain, issuerCertificate should be present
+          assert.ok(cert.issuerCertificate, 'issuerCertificate should be preserved');
+          return true;
+        }, { certificateSource: 'traefik', includeChain: true });
+
+        await new Promise((resolve) => {
+          middleware(req, mockRes, () => {
+            assert.ok(req.clientCertificate.issuerCertificate);
+            resolve();
+          });
+        });
+      });
+    });
   });
 });
