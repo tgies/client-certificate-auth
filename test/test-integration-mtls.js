@@ -6,9 +6,7 @@ import clientCertificateAuth from '../lib/clientCertificateAuth.js';
 /**
  * Integration tests that establish real mTLS connections.
  */
-describe('mTLS Integration', function () {
-    // Increase timeout for cert generation and server setup
-    this.timeout(10000);
+describe('mTLS Integration', () => {
 
     let caPems;
     let serverPems;
@@ -16,7 +14,7 @@ describe('mTLS Integration', function () {
     let server;
     let serverPort;
 
-    before(async function () {
+    beforeAll(async () => {
         // Step 1: Generate a CA certificate
         caPems = await selfsigned.generate(
             [{ name: 'commonName', value: 'Test CA' }],
@@ -65,7 +63,7 @@ describe('mTLS Integration', function () {
         );
     });
 
-    beforeEach(function (done) {
+    beforeEach(done => {
         // Create HTTPS server with mTLS configuration
         server = https.createServer(
             {
@@ -101,11 +99,11 @@ describe('mTLS Integration', function () {
         });
     });
 
-    afterEach(function (done) {
+    afterEach(done => {
         server.close(done);
     });
 
-    it('should accept requests with valid client certificate', function (done) {
+    it('should accept requests with valid client certificate', done => {
         const options = {
             hostname: 'localhost',
             port: serverPort,
@@ -133,7 +131,7 @@ describe('mTLS Integration', function () {
         req.end();
     });
 
-    it('should reject requests without client certificate', function (done) {
+    it('should reject requests without client certificate', done => {
         const options = {
             hostname: 'localhost',
             port: serverPort,
@@ -157,67 +155,70 @@ describe('mTLS Integration', function () {
         req.end();
     });
 
-    it('should reject requests with certificate that fails validation callback', function (done) {
-        // Create a new server that rejects all certs in the callback
-        server.close(() => {
-            server = https.createServer(
-                {
-                    key: serverPems.private,
-                    cert: serverPems.cert,
-                    ca: [caPems.cert],
-                    requestCert: true,
-                    rejectUnauthorized: false,
-                },
-                (req, res) => {
-                    const middleware = clientCertificateAuth((cert) => {
-                        // Reject all certificates
-                        return cert.subject.CN === 'Some Other Client';
+    it(
+        'should reject requests with certificate that fails validation callback',
+        done => {
+            // Create a new server that rejects all certs in the callback
+            server.close(() => {
+                server = https.createServer(
+                    {
+                        key: serverPems.private,
+                        cert: serverPems.cert,
+                        ca: [caPems.cert],
+                        requestCert: true,
+                        rejectUnauthorized: false,
+                    },
+                    (req, res) => {
+                        const middleware = clientCertificateAuth((cert) => {
+                            // Reject all certificates
+                            return cert.subject.CN === 'Some Other Client';
+                        });
+
+                        middleware(req, res, (err) => {
+                            if (err) {
+                                res.writeHead(err.status || 500);
+                                res.end(JSON.stringify({ error: err.message }));
+                            } else {
+                                res.writeHead(200);
+                                res.end(JSON.stringify({ success: true }));
+                            }
+                        });
+                    }
+                );
+
+                server.listen(0, 'localhost', () => {
+                    serverPort = server.address().port;
+
+                    const options = {
+                        hostname: 'localhost',
+                        port: serverPort,
+                        path: '/',
+                        method: 'GET',
+                        key: clientPems.private,
+                        cert: clientPems.cert,
+                        ca: [caPems.cert],
+                        rejectUnauthorized: true,
+                    };
+
+                    const req = https.request(options, (res) => {
+                        let body = '';
+                        res.on('data', (chunk) => { body += chunk; });
+                        res.on('end', () => {
+                            assert.equal(res.statusCode, 401);
+                            const data = JSON.parse(body);
+                            assert.equal(data.error, 'Unauthorized');
+                            done();
+                        });
                     });
 
-                    middleware(req, res, (err) => {
-                        if (err) {
-                            res.writeHead(err.status || 500);
-                            res.end(JSON.stringify({ error: err.message }));
-                        } else {
-                            res.writeHead(200);
-                            res.end(JSON.stringify({ success: true }));
-                        }
-                    });
-                }
-            );
-
-            server.listen(0, 'localhost', () => {
-                serverPort = server.address().port;
-
-                const options = {
-                    hostname: 'localhost',
-                    port: serverPort,
-                    path: '/',
-                    method: 'GET',
-                    key: clientPems.private,
-                    cert: clientPems.cert,
-                    ca: [caPems.cert],
-                    rejectUnauthorized: true,
-                };
-
-                const req = https.request(options, (res) => {
-                    let body = '';
-                    res.on('data', (chunk) => { body += chunk; });
-                    res.on('end', () => {
-                        assert.equal(res.statusCode, 401);
-                        const data = JSON.parse(body);
-                        assert.equal(data.error, 'Unauthorized');
-                        done();
-                    });
+                    req.on('error', done);
+                    req.end();
                 });
-
-                req.on('error', done);
-                req.end();
             });
-        });
-    });
+        }
+    );
 
-    it('should support async validation callbacks', function (done) {
+    it('should support async validation callbacks', done => {
         server.close(() => {
             server = https.createServer(
                 {

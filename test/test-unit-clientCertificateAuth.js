@@ -23,20 +23,26 @@ const getMockPeerCertificate = () => ({
   fingerprint: 'BA:DA:DD:EA:DB:EE:FC:CC:CC:CC:07:15:19:88:C0:FF:EE:00:12:00'
 });
 
-describe('clientCertificateAuth', function () {
-  it('should be a function taking callback and options arguments', function () {
-    assert.equal(typeof clientCertificateAuth, 'function');
-    // Note: Function.length is 1 because `options` has a default value
-    assert.equal(clientCertificateAuth.length, 1);
-  });
+describe('clientCertificateAuth', () => {
+  it(
+    'should be a function taking callback and options arguments',
+    () => {
+      assert.equal(typeof clientCertificateAuth, 'function');
+      // Note: Function.length is 1 because `options` has a default value
+      assert.equal(clientCertificateAuth.length, 1);
+    }
+  );
 
-  it('should return a middleware function taking three arguments', function () {
-    const middleware = clientCertificateAuth(() => true);
-    assert.equal(typeof middleware, 'function');
-    assert.equal(middleware.length, 3);
-  });
+  it(
+    'should return a middleware function taking three arguments',
+    () => {
+      const middleware = clientCertificateAuth(() => true);
+      assert.equal(typeof middleware, 'function');
+      assert.equal(middleware.length, 3);
+    }
+  );
 
-  describe('middleware(req, res, next)', function () {
+  describe('middleware(req, res, next)', () => {
     const mockGoodReq = {
       secure: true,
       socket: { authorized: true, getPeerCertificate: getMockPeerCertificate },
@@ -59,17 +65,20 @@ describe('clientCertificateAuth', function () {
       redirect: () => { }
     };
 
-    describe('when the request is secure and the client certificate validates', function () {
-      it('should call the validation callback with the certificate', function (done) {
-        const middleware = clientCertificateAuth((cert) => {
-          assert.equal(cert.subject.CN, 'Proctor Davenport');
-          done();
-          return true;
-        });
-        middleware(mockGoodReq, mockRes, () => { });
-      });
+    describe('when the request is secure and the client certificate validates', () => {
+      it(
+        'should call the validation callback with the certificate',
+        done => {
+          const middleware = clientCertificateAuth((cert) => {
+            assert.equal(cert.subject.CN, 'Proctor Davenport');
+            done();
+            return true;
+          });
+          middleware(mockGoodReq, mockRes, () => { });
+        }
+      );
 
-      it('should call next() if callback returns true (sync)', function (done) {
+      it('should call next() if callback returns true (sync)', done => {
         const middleware = clientCertificateAuth(() => true);
         middleware(mockGoodReq, mockRes, (err) => {
           assert.equal(err, undefined);
@@ -77,34 +86,43 @@ describe('clientCertificateAuth', function () {
         });
       });
 
-      it('should call next() if callback returns Promise<true> (async)', function (done) {
-        const middleware = clientCertificateAuth(async () => true);
-        middleware(mockGoodReq, mockRes, (err) => {
-          assert.equal(err, undefined);
-          done();
-        });
-      });
+      it(
+        'should call next() if callback returns Promise<true> (async)',
+        done => {
+          const middleware = clientCertificateAuth(async () => true);
+          middleware(mockGoodReq, mockRes, (err) => {
+            assert.equal(err, undefined);
+            done();
+          });
+        }
+      );
 
-      it('should pass 401 error to next() if callback returns false', function (done) {
-        const middleware = clientCertificateAuth(() => false);
-        middleware(mockGoodReq, mockRes, (err) => {
-          assert.ok(err instanceof Error);
-          assert.equal(err.status, 401);
-          assert.equal(err.message, 'Unauthorized');
-          done();
-        });
-      });
+      it(
+        'should pass 401 error to next() if callback returns false',
+        done => {
+          const middleware = clientCertificateAuth(() => false);
+          middleware(mockGoodReq, mockRes, (err) => {
+            assert.ok(err instanceof Error);
+            assert.equal(err.status, 401);
+            assert.equal(err.message, 'Unauthorized');
+            done();
+          });
+        }
+      );
 
-      it('should pass 401 error to next() if async callback returns false', function (done) {
-        const middleware = clientCertificateAuth(async () => false);
-        middleware(mockGoodReq, mockRes, (err) => {
-          assert.ok(err instanceof Error);
-          assert.equal(err.status, 401);
-          done();
-        });
-      });
+      it(
+        'should pass 401 error to next() if async callback returns false',
+        done => {
+          const middleware = clientCertificateAuth(async () => false);
+          middleware(mockGoodReq, mockRes, (err) => {
+            assert.ok(err instanceof Error);
+            assert.equal(err.status, 401);
+            done();
+          });
+        }
+      );
 
-      it('should pass error to next() if callback throws', function (done) {
+      it('should pass error to next() if callback throws', done => {
         const middleware = clientCertificateAuth(() => {
           throw new Error('Validation failed');
         });
@@ -115,7 +133,7 @@ describe('clientCertificateAuth', function () {
         });
       });
 
-      it('should pass error to next() if async callback rejects', function (done) {
+      it('should pass error to next() if async callback rejects', done => {
         const middleware = clientCertificateAuth(async () => {
           throw new Error('Async validation failed');
         });
@@ -127,25 +145,28 @@ describe('clientCertificateAuth', function () {
       });
     });
 
-    describe('when the client certificate does not validate', function () {
-      it('should pass 401 error to next() without calling callback', function (done) {
-        let callbackCalled = false;
-        const middleware = clientCertificateAuth(() => {
-          callbackCalled = true;
-          return true;
-        });
-        middleware(mockUnauthReq, mockRes, (err) => {
-          assert.equal(callbackCalled, false);
-          assert.ok(err instanceof Error);
-          assert.equal(err.status, 401);
-          assert.ok(err.message.includes('CERT_UNTRUSTED'));
-          done();
-        });
-      });
+    describe('when the client certificate does not validate', () => {
+      it(
+        'should pass 401 error to next() without calling callback',
+        done => {
+          let callbackCalled = false;
+          const middleware = clientCertificateAuth(() => {
+            callbackCalled = true;
+            return true;
+          });
+          middleware(mockUnauthReq, mockRes, (err) => {
+            assert.equal(callbackCalled, false);
+            assert.ok(err instanceof Error);
+            assert.equal(err.status, 401);
+            assert.ok(err.message.includes('CERT_UNTRUSTED'));
+            done();
+          });
+        }
+      );
     });
 
-    describe('when req.socket.authorized is falsy', function () {
-      it('should pass 401 error to next()', function (done) {
+    describe('when req.socket.authorized is falsy', () => {
+      it('should pass 401 error to next()', done => {
         const reqNoAuth = { ...mockGoodReq, socket: { authorized: undefined, getPeerCertificate: getMockPeerCertificate } };
         const middleware = clientCertificateAuth(() => true);
         middleware(reqNoAuth, mockRes, (err) => {
@@ -156,8 +177,8 @@ describe('clientCertificateAuth', function () {
       });
     });
 
-    describe('when certificate cannot be retrieved', function () {
-      it('should pass 500 error to next()', function (done) {
+    describe('when certificate cannot be retrieved', () => {
+      it('should pass 500 error to next()', done => {
         const reqEmptyCert = {
           ...mockGoodReq,
           socket: { authorized: true, getPeerCertificate: () => ({}) }
@@ -171,8 +192,8 @@ describe('clientCertificateAuth', function () {
       });
     });
 
-    describe('redirectInsecure option', function () {
-      it('should NOT redirect by default', function (done) {
+    describe('redirectInsecure option', () => {
+      it('should NOT redirect by default', done => {
         let redirectCalled = false;
         const res = {
           redirect: () => { redirectCalled = true; }
@@ -186,7 +207,7 @@ describe('clientCertificateAuth', function () {
         });
       });
 
-      it('should redirect when redirectInsecure is true', function () {
+      it('should redirect when redirectInsecure is true', () => {
         let redirectUrl = null;
         let redirectStatus = null;
         const req = {
@@ -210,7 +231,7 @@ describe('clientCertificateAuth', function () {
         assert.equal(redirectUrl, 'https://example.com/protected');
       });
 
-      it('should NOT redirect if x-forwarded-proto is https', function (done) {
+      it('should NOT redirect if x-forwarded-proto is https', done => {
         const req = {
           secure: false,
           socket: { authorized: true, getPeerCertificate: getMockPeerCertificate },

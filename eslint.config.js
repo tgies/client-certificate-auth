@@ -21,11 +21,11 @@ export default [
         }
     },
     {
-        // Test files can use Mocha globals
+        // Test files can use Jest globals
         files: ['test/**/*.js', 'test/**/*.cjs'],
         languageOptions: {
             globals: {
-                ...globals.mocha
+                ...globals.jest
             }
         }
     },

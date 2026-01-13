@@ -1,6 +1,6 @@
 .git*
 .github/
-.mocharc.json
+jest.config.js
 eslint.config.js
 tsconfig.json
 test/

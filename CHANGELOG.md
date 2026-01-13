@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Migrated from Travis CI to GitHub Actions
+- Migrated test runner from Mocha to Jest
 - Updated all dependencies to latest versions
 - Replaced `should` assertion library with Node.js built-in `assert`
 - Improved error messages with authorization error details
