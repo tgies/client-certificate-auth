@@ -157,6 +157,58 @@ describe('clientCertificateAuth (CommonJS)', () => {
                     done();
                 });
             });
+
+            it('should set status = 401 on thrown sync errors', done => {
+                const middleware = clientCertificateAuth(() => {
+                    throw new Error('Certificate revoked');
+                });
+                middleware(mockGoodReq, mockRes, (err) => {
+                    assert.ok(err instanceof Error);
+                    assert.equal(err.message, 'Certificate revoked');
+                    assert.equal(err.status, 401);
+                    done();
+                });
+            });
+
+            it('should set status = 401 on thrown async errors', done => {
+                const middleware = clientCertificateAuth(async () => {
+                    throw new Error('Certificate not in allowlist');
+                });
+                middleware(mockGoodReq, mockRes, (err) => {
+                    assert.ok(err instanceof Error);
+                    assert.equal(err.message, 'Certificate not in allowlist');
+                    assert.equal(err.status, 401);
+                    done();
+                });
+            });
+
+            it('should preserve pre-set status on thrown errors', done => {
+                const middleware = clientCertificateAuth(() => {
+                    const err = new Error('Custom forbidden');
+                    err.status = 403;
+                    throw err;
+                });
+                middleware(mockGoodReq, mockRes, (err) => {
+                    assert.ok(err instanceof Error);
+                    assert.equal(err.message, 'Custom forbidden');
+                    assert.equal(err.status, 403);
+                    done();
+                });
+            });
+
+            it('should preserve pre-set status on async thrown errors', done => {
+                const middleware = clientCertificateAuth(async () => {
+                    const err = new Error('Async forbidden');
+                    err.status = 403;
+                    throw err;
+                });
+                middleware(mockGoodReq, mockRes, (err) => {
+                    assert.ok(err instanceof Error);
+                    assert.equal(err.message, 'Async forbidden');
+                    assert.equal(err.status, 403);
+                    done();
+                });
+            });
         });
 
         describe('when the client certificate does not validate', () => {

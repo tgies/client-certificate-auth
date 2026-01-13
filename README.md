@@ -80,6 +80,34 @@ const checkAuth = async (cert) => {
 app.use(clientCertificateAuth(checkAuth));
 ```
 
+### Custom Error Messages
+
+Throw errors for granular authorization feedback instead of returning `false`:
+
+```javascript
+const checkAuth = (cert) => {
+  if (isRevoked(cert.serialNumber)) {
+    throw new Error('Certificate has been revoked');
+  }
+  if (!allowlist.includes(cert.fingerprint)) {
+    throw new Error('Certificate not in allowlist');
+  }
+  return true;
+};
+
+// Thrown errors are passed to Express error handlers with:
+// - error.message = your custom message
+// - error.status = 401 (unless you set a different status)
+```
+
+To use a different status code, set it on the error before throwing:
+
+```javascript
+const err = new Error('Access forbidden');
+err.status = 403;
+throw err;
+```
+
 ## API
 
 ### `clientCertificateAuth(callback, options?)`
