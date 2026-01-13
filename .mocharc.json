@@ -1,0 +1,10 @@
+{
+    "spec": [
+        "test/test-unit-*.js",
+        "test/test-unit-*.cjs",
+        "test/test-integration-*.js"
+    ],
+    "ui": "bdd",
+    "reporter": "spec",
+    "timeout": 5000
+}

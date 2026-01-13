@@ -1,114 +1,136 @@
-client-certificate-auth
-========
+# client-certificate-auth
 
-middleware for Node.js implementing client SSL certificate
-authentication/authorization
+Express/Connect middleware for client SSL certificate authentication (mTLS).
 
-Copyright © 2013 Tony Gies
+[![CI](https://github.com/tgies/client-certificate-auth/actions/workflows/ci.yml/badge.svg)](https://github.com/tgies/client-certificate-auth/actions/workflows/ci.yml)
+[![npm version](https://badge.fury.io/js/client-certificate-auth.svg)](https://www.npmjs.com/package/client-certificate-auth)
 
-April 30, 2013
+## Installation
 
-[![Build Status](https://travis-ci.org/tgies/client-certificate-auth.png)](https://travis-ci.org/tgies/client-certificate-auth)
+```bash
+npm install client-certificate-auth
+```
 
-installing
-----------
+**Requirements:** Node.js >= 18
 
-client-certificate-auth is available from [npm](https://npmjs.org/package/client-certificate-auth.).
+## Synopsis
 
-    $ npm install client-certificate-auth
+This middleware requires clients to present a valid, verifiable SSL certificate (mutual TLS / mTLS). The certificate is validated at the TLS layer, then passed to your callback for additional authorization logic.
 
-requirements
-------------
+Compatible with Express, Connect, and any Node.js HTTP server framework that uses standard `req.socket` and `req.headers`.
 
-client-certificate-auth is tested against Node.js versions 0.6, 0.8, and 0.10.
-It has no external dependencies (other than any middleware framework with which
-you may wish to use it); however, to run the tests, you will need [mocha](https://npmjs.org/package/mocha) and
-[should](https://npmjs.org/package/should).
+## Usage
 
-synopsis
---------
+### Basic Setup
 
-client-certificate-auth provides HTTP middleware for Node.js (in particular
-Connect/Express) to require that a valid, verifiable client SSL certificate is
-provided, and passes information about that certificate to a callback which must
-return `true` for the request to proceed; otherwise, the client is considered 
-unauthorized and the request is aborted.
-
-usage
------
-
-The https server must be set up to request a client certificate and validate it 
-against an issuer/CA certificate. What follows is a typical example using
-[Express](http://expressjs.com):
+Configure your HTTPS server to request and validate client certificates:
 
 ```javascript
-var express = require('express');
-var fs = require('fs');
-var https = require('https');
-var clientCertificateAuth = require('client-certificate-auth');
+import express from 'express';
+import https from 'node:https';
+import fs from 'node:fs';
+import clientCertificateAuth from 'client-certificate-auth';
 
-var opts = {
-  // Server SSL private key and certificate
-  key: fs.readFileSync('server.key'),
-  cert: fs.readFileSync('server.pem'),
-  // issuer/CA certificate against which the client certificate will be
-  // validated. A certificate that is not signed by a provided CA will be
-  // rejected at the protocol layer.
-  ca: fs.readFileSync('cacert.pem'),
-  // request a certificate, but don't necessarily reject connections from
-  // clients providing an untrusted or no certificate. This lets us protect only
-  // certain routes, or send a helpful error message to unauthenticated clients.
-  requestCert: true,
-  rejectUnauthorized: false
+const app = express();
+
+// Validate certificate against your authorization rules
+const checkAuth = (cert) => {
+  return cert.subject.CN === 'trusted-client';
 };
 
-var app = express();
-
-// add clientCertificateAuth to the middleware stack, passing it a callback
-// which will do further examination of the provided certificate.
+// Apply to all routes
 app.use(clientCertificateAuth(checkAuth));
-app.use(app.router);
-app.use(function(err, req, res, next) { console.log(err); next(); });
 
-app.get('/', function(req, res) {
+app.get('/', (req, res) => {
   res.send('Authorized!');
 });
 
-var checkAuth = function(cert) {
- /*
-  * allow access if certificate subject Common Name is 'Doug Prishpreed'.
-  * this is one of many ways you can authorize only certain authenticated
-  * certificate-holders; you might instead choose to check the certificate
-  * fingerprint, or apply some sort of role-based security based on e.g. the OU
-  * field of the certificate. You can also link into another layer of
-  * auth or session middleware here; for instance, you might pass the subject CN
-  * as a username to log the user in to your underlying authentication/session
-  * management layer.
-  */
-  return cert.subject.CN === 'Doug Prishpreed';
+// HTTPS server configuration
+const opts = {
+  key: fs.readFileSync('server.key'),
+  cert: fs.readFileSync('server.pem'),
+  ca: fs.readFileSync('ca.pem'),       // CA that signed client certs
+  requestCert: true,                    // Request client certificate
+  rejectUnauthorized: false             // Let middleware handle errors
 };
 
-https.createServer(opts, app).listen(4000);
+https.createServer(opts, app).listen(443);
 ```
 
-Or secure only certain routes:
+### Per-Route Protection
 
 ```javascript
-app.get('/unsecure', function(req, res) {
+app.get('/public', (req, res) => {
   res.send('Hello world');
 });
 
-app.get('/secure', clientCertificateAuth(checkAuth), function(req, res) {
-  res.send('Hello authorized user');
+app.get('/admin', clientCertificateAuth(checkAuth), (req, res) => {
+  res.send('Hello admin');
 });
 ```
 
-`checkAuth` can also be asynchronous:
+### Async Authorization
 
 ```javascript
-function checkAuth(cert, callback) {
-  callback(true);
-}
+const checkAuth = async (cert) => {
+  const user = await db.findByFingerprint(cert.fingerprint);
+  return user !== null;
+};
 
-app.use(checkAuth);
+app.use(clientCertificateAuth(checkAuth));
 ```
+
+## API
+
+### `clientCertificateAuth(callback, options?)`
+
+Returns Express middleware.
+
+**Parameters:**
+
+| Name | Type | Description |
+|------|------|-------------|
+| `callback` | `(cert) => boolean \| Promise<boolean>` | Receives the client certificate, returns `true` to allow access |
+| `options.redirectInsecure` | `boolean` | If `true`, redirect HTTP → HTTPS (default: `false`) |
+
+**Certificate Object:**
+
+The `cert` parameter contains fields from [`tls.PeerCertificate`](https://nodejs.org/api/tls.html#certificate-object):
+
+- `subject.CN` - Common Name
+- `subject.O` - Organization
+- `issuer` - Issuer information
+- `fingerprint` - Certificate fingerprint
+- `valid_from`, `valid_to` - Validity period
+
+## TypeScript
+
+Types are included:
+
+```typescript
+import clientCertificateAuth from 'client-certificate-auth';
+import type { PeerCertificate } from 'tls';
+
+const checkAuth = (cert: PeerCertificate): boolean => {
+  return cert.subject.CN === 'admin';
+};
+
+app.use(clientCertificateAuth(checkAuth));
+```
+
+## CommonJS
+
+```javascript
+const clientCertificateAuth = require('client-certificate-auth');
+
+app.use(clientCertificateAuth((cert) => cert.subject.CN === 'admin'));
+```
+
+## Security Notes
+
+- **Do not use `redirectInsecure: true` in production** — the initial HTTP request can be intercepted
+- Set `rejectUnauthorized: false` on your HTTPS server to let this middleware provide helpful error messages, rather than dropping connections silently
+
+## License
+
+MIT © Tony Gies
