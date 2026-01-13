@@ -228,6 +228,87 @@ if ($ssl_client_verify = SUCCESS) {
 }
 ```
 
+## Authorization Helpers
+
+Pre-built validation callbacks for common authorization patterns, available as a separate import:
+
+```javascript
+import clientCertificateAuth from 'client-certificate-auth';
+import { allowCN, allowFingerprints, allowIssuer, allOf, anyOf } from 'client-certificate-auth/helpers';
+```
+
+### Basic Helpers
+
+```javascript
+// Allowlist by Common Name
+app.use(clientCertificateAuth(allowCN(['service-a', 'service-b'])));
+
+// Allowlist by fingerprint
+app.use(clientCertificateAuth(allowFingerprints([
+  'SHA256:AB:CD:EF:...',
+  'AB:CD:EF:...'  // SHA256: prefix optional
+])));
+
+// Allowlist by Organization
+app.use(clientCertificateAuth(allowOrganization(['My Company'])));
+
+// Allowlist by Organizational Unit
+app.use(clientCertificateAuth(allowOU(['Engineering', 'DevOps'])));
+
+// Allowlist by email (checks SAN and subject.emailAddress)
+app.use(clientCertificateAuth(allowEmail(['admin@example.com'])));
+
+// Allowlist by serial number
+app.use(clientCertificateAuth(allowSerial(['01:23:45:67:89:AB:CD:EF'])));
+
+// Allowlist by Subject Alternative Name
+app.use(clientCertificateAuth(allowSAN(['DNS:api.example.com', 'email:service@example.com'])));
+```
+
+### Field Matching
+
+Match certificates by issuer or subject fields (all specified fields must match):
+
+```javascript
+// Match by issuer
+app.use(clientCertificateAuth(allowIssuer({ O: 'My Company', CN: 'Internal CA' })));
+
+// Match by subject
+app.use(clientCertificateAuth(allowSubject({ O: 'Partner Corp', ST: 'California' })));
+```
+
+### Combining Helpers
+
+```javascript
+// AND - all conditions must pass
+app.use(clientCertificateAuth(allOf(
+  allowIssuer({ O: 'My Company' }),
+  allowOU(['Engineering', 'DevOps'])
+)));
+
+// OR - at least one condition must pass
+app.use(clientCertificateAuth(anyOf(
+  allowCN(['admin']),
+  allowOU(['Administrators'])
+)));
+```
+
+### Available Helpers
+
+| Helper | Description |
+|--------|-------------|
+| `allowCN(names)` | Match by Common Name |
+| `allowFingerprints(fps)` | Match by certificate fingerprint |
+| `allowIssuer(match)` | Match by issuer fields (partial) |
+| `allowSubject(match)` | Match by subject fields (partial) |
+| `allowOU(ous)` | Match by Organizational Unit |
+| `allowOrganization(orgs)` | Match by Organization |
+| `allowSerial(serials)` | Match by serial number |
+| `allowSAN(values)` | Match by Subject Alternative Name |
+| `allowEmail(emails)` | Match by email (SAN or subject) |
+| `allOf(...callbacks)` | AND combinator |
+| `anyOf(...callbacks)` | OR combinator |
+
 ## TypeScript
 
 Types are included:

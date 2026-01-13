@@ -27,6 +27,12 @@
         "types": "./lib/parsers.d.ts",
         "default": "./lib/parsers.js"
       }
+    },
+    "./helpers": {
+      "import": {
+        "types": "./lib/helpers.d.ts",
+        "default": "./lib/helpers.js"
+      }
     }
   },
   "main": "./lib/clientCertificateAuth.cjs",

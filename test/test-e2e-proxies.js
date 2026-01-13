@@ -400,11 +400,80 @@ describeIfDocker('Reverse Proxy Integration Tests', () => {
             ).rejects.toThrow();
         });
     });
+
+    // Authorization Helpers E2E Tests (using nginx-strict)
+    describe('Authorization Helpers', () => {
+        describe('allowCN', () => {
+            it('should accept matching CN via real proxy', async () => {
+                const response = await makeRequest(
+                    `https://localhost:${NGINX_STRICT_PORT}/helpers/allow-cn`,
+                    certs.client.cert,
+                    certs.client.key,
+                    certs.ca.cert
+                );
+
+                expect(response.success).toBe(true);
+                expect(response.clientCN).toBe('Test Client');
+                expect(response.helperPath).toBe('/helpers/allow-cn');
+            });
+
+            it('should reject non-matching CN via real proxy', async () => {
+                const response = await makeRequest(
+                    `https://localhost:${NGINX_STRICT_PORT}/helpers/allow-cn-reject`,
+                    certs.client.cert,
+                    certs.client.key,
+                    certs.ca.cert
+                );
+
+                expect(response.success).toBe(false);
+                expect(response.status).toBe(401);
+            });
+        });
+
+        describe('allowIssuer', () => {
+            it('should accept matching issuer via real proxy', async () => {
+                const response = await makeRequest(
+                    `https://localhost:${NGINX_STRICT_PORT}/helpers/allow-issuer`,
+                    certs.client.cert,
+                    certs.client.key,
+                    certs.ca.cert
+                );
+
+                expect(response.success).toBe(true);
+                expect(response.clientCN).toBe('Test Client');
+            });
+        });
+
+        describe('allOf', () => {
+            it('should accept when all conditions pass via real proxy', async () => {
+                const response = await makeRequest(
+                    `https://localhost:${NGINX_STRICT_PORT}/helpers/all-of`,
+                    certs.client.cert,
+                    certs.client.key,
+                    certs.ca.cert
+                );
+
+                expect(response.success).toBe(true);
+                expect(response.clientCN).toBe('Test Client');
+            });
+        });
+
+        describe('anyOf', () => {
+            it('should accept when at least one condition passes via real proxy', async () => {
+                const response = await makeRequest(
+                    `https://localhost:${NGINX_STRICT_PORT}/helpers/any-of`,
+                    certs.client.cert,
+                    certs.client.key,
+                    certs.ca.cert
+                );
+
+                expect(response.success).toBe(true);
+                expect(response.clientCN).toBe('Test Client');
+            });
+        });
+    });
 });
 
-/**
- * Make HTTPS request without client certificate.
- */
 function makeRequestWithoutCert(url, caCert) {
     return new Promise((resolve, reject) => {
         const urlObj = new URL(url);
@@ -439,3 +508,5 @@ function makeRequestWithoutCert(url, caCert) {
         req.end();
     });
 }
+
+
