@@ -472,6 +472,35 @@ describeIfDocker('Reverse Proxy Integration Tests', () => {
             });
         });
     });
+
+    // Verification Header E2E Tests (using nginx-optional which sends X-SSL-Client-Verify)
+    describe('Verification Header', () => {
+        it('should accept request when verifyHeader matches verifyValue', async () => {
+            const response = await makeRequest(
+                `https://localhost:${NGINX_OPTIONAL_PORT}/helpers/verify-header`,
+                certs.client.cert,
+                certs.client.key,
+                certs.ca.cert
+            );
+
+            expect(response.success).toBe(true);
+            expect(response.clientCN).toBe('Test Client');
+            expect(response.helperPath).toBe('/helpers/verify-header');
+        });
+
+        it('should reject request when verifyValue does not match', async () => {
+            const response = await makeRequest(
+                `https://localhost:${NGINX_OPTIONAL_PORT}/helpers/verify-header-wrong-value`,
+                certs.client.cert,
+                certs.client.key,
+                certs.ca.cert
+            );
+
+            expect(response.success).toBe(false);
+            expect(response.status).toBe(401);
+            expect(response.error).toContain('Certificate verification failed');
+        });
+    });
 });
 
 function makeRequestWithoutCert(url, caCert) {

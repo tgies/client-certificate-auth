@@ -119,12 +119,13 @@ Returns Express middleware.
 | Name | Type | Description |
 |------|------|-------------|
 | `callback` | `(cert) => boolean \| Promise<boolean>` | Receives the client certificate, returns `true` to allow access |
-| `options.redirectInsecure` | `boolean` | If `true`, redirect HTTP → HTTPS (default: `false`) |
 | `options.certificateSource` | `string` | Use a preset for a known proxy: `'aws-alb'`, `'envoy'`, `'cloudflare'`, `'traefik'` |
 | `options.certificateHeader` | `string` | Custom header name to read certificate from |
 | `options.headerEncoding` | `string` | Encoding format: `'url-pem'`, `'url-pem-aws'`, `'xfcc'`, `'base64-der'`, `'rfc9440'` |
 | `options.fallbackToSocket` | `boolean` | If header extraction fails, try `socket.getPeerCertificate()` (default: `false`) |
 | `options.includeChain` | `boolean` | If `true`, include full certificate chain via `cert.issuerCertificate` (default: `false`) |
+| `options.verifyHeader` | `string` | Header name containing verification status from proxy (e.g., `'X-SSL-Client-Verify'`) |
+| `options.verifyValue` | `string` | Expected value indicating successful verification (e.g., `'SUCCESS'`) |
 
 **Certificate Object:**
 
@@ -263,12 +264,29 @@ Configure your proxy to:
 2. **Set** the header only for authenticated mTLS connections
 3. **Never** trust certificate headers from untrusted sources
 
+#### Verification Header (Defense in Depth)
+
+For additional protection, use `verifyHeader` and `verifyValue` to validate that your proxy has actually verified the certificate. This guards against proxy misconfiguration (e.g., `ssl_verify_client optional` passing unverified certs):
+
+```javascript
+app.use(clientCertificateAuth(checkAuth, {
+  certificateHeader: 'X-SSL-Client-Cert',
+  headerEncoding: 'url-pem',
+  verifyHeader: 'X-SSL-Client-Verify',
+  verifyValue: 'SUCCESS'
+}));
+```
+
 Example nginx configuration:
 ```nginx
-# Strip any existing header from clients
+# Strip any existing headers from clients
 proxy_set_header X-SSL-Client-Cert "";
+proxy_set_header X-SSL-Client-Verify "";
 
-# Set header only when client cert is verified
+# Always send verification status
+proxy_set_header X-SSL-Client-Verify $ssl_client_verify;
+
+# Only send cert if verified
 if ($ssl_client_verify = SUCCESS) {
     proxy_set_header X-SSL-Client-Cert $ssl_client_escaped_cert;
 }
@@ -391,9 +409,9 @@ app.use(clientCertificateAuth((cert) => cert.subject.CN === 'admin'));
 
 ## Security Notes
 
-- **Do not use `redirectInsecure: true` in production** — the initial HTTP request can be intercepted
 - Set `rejectUnauthorized: false` on your HTTPS server to let this middleware provide helpful error messages, rather than dropping connections silently
 - **When using header-based auth**, ensure your proxy strips certificate headers from external requests
+- Use `verifyHeader`/`verifyValue` as defense-in-depth when using header-based authentication
 
 ## License
 

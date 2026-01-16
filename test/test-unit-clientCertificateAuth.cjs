@@ -63,11 +63,6 @@ describe('clientCertificateAuth (CommonJS)', () => {
             headers: {}
         };
 
-        const mockUnsecureReq = {
-            secure: false,
-            socket: { authorized: false, getPeerCertificate: () => ({}) },
-            headers: {}
-        };
 
         const mockUnauthReq = {
             secure: true,
@@ -258,63 +253,6 @@ describe('clientCertificateAuth (CommonJS)', () => {
             });
         });
 
-        describe('redirectInsecure option', () => {
-            it('should NOT redirect by default', done => {
-                let redirectCalled = false;
-                const res = {
-                    redirect: () => { redirectCalled = true; }
-                };
-                const middleware = clientCertificateAuth(() => true);
-                middleware(mockUnsecureReq, res, (err) => {
-                    assert.equal(redirectCalled, false);
-                    assert.ok(err instanceof Error);
-                    done();
-                });
-            });
-
-            it('should redirect when redirectInsecure is true', () => {
-                let redirectUrl = null;
-                let redirectStatus = null;
-                const req = {
-                    secure: false,
-                    socket: {},
-                    headers: {
-                        'host': 'example.com'
-                    },
-                    url: '/protected'
-                };
-                const res = {
-                    redirect: (status, url) => {
-                        redirectStatus = status;
-                        redirectUrl = url;
-                    }
-                };
-                const middleware = clientCertificateAuth(() => true, { redirectInsecure: true });
-                middleware(req, res, () => { });
-
-                assert.equal(redirectStatus, 301);
-                assert.equal(redirectUrl, 'https://example.com/protected');
-            });
-
-            it('should NOT redirect if x-forwarded-proto is https', done => {
-                const req = {
-                    secure: false,
-                    socket: { authorized: true, getPeerCertificate: getMockPeerCertificate },
-                    headers: {
-                        'x-forwarded-proto': 'https'
-                    }
-                };
-                let redirectCalled = false;
-                const res = {
-                    redirect: () => { redirectCalled = true; }
-                };
-                const middleware = clientCertificateAuth(() => true, { redirectInsecure: true });
-                middleware(req, res, () => {
-                    assert.equal(redirectCalled, false);
-                    done();
-                });
-            });
-        });
 
         describe('includeChain option', () => {
             const getMockIssuerCertificate = () => ({

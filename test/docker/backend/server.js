@@ -50,6 +50,23 @@ const HELPER_CONFIGS = {
         headerConfig: PATH_CONFIGS['/nginx'],
         validator: anyOf(allowCN(['Wrong Client']), allowCN(['Test Client'])),
     },
+    // Verification header test routes
+    '/helpers/verify-header': {
+        headerConfig: {
+            ...PATH_CONFIGS['/nginx'],
+            verifyHeader: 'X-SSL-Client-Verify',
+            verifyValue: 'SUCCESS',
+        },
+        validator: () => true,
+    },
+    '/helpers/verify-header-wrong-value': {
+        headerConfig: {
+            ...PATH_CONFIGS['/nginx'],
+            verifyHeader: 'X-SSL-Client-Verify',
+            verifyValue: 'WRONG_VALUE', // This should always fail
+        },
+        validator: () => true,
+    },
 };
 
 const server = http.createServer((req, res) => {

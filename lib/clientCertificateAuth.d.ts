@@ -41,18 +41,12 @@ export interface ClientCertResponse extends ServerResponse {
 
 export interface ClientCertificateAuthOptions {
     /**
-     * If true, redirect HTTP requests to HTTPS.
-     * WARNING: This can expose the initial request to MITM attacks.
-     * @default false
-     */
-    redirectInsecure?: boolean;
-
-    /**
      * Use a preset configuration for a known reverse proxy.
      * Header-based certs are only checked if this or certificateHeader is set.
      * @see https://github.com/tgies/client-certificate-auth#reverse-proxy-support
      */
     certificateSource?: CertificateSource;
+
 
     /**
      * Custom header name to read certificate from.
@@ -79,6 +73,19 @@ export interface ClientCertificateAuthOptions {
      * @default false
      */
     includeChain?: boolean;
+
+    /**
+     * Header name containing certificate verification status from upstream proxy.
+     * Must be used together with verifyValue. Example: 'X-SSL-Client-Verify' for nginx.
+     */
+    verifyHeader?: string;
+
+    /**
+     * Expected value indicating successful certificate verification.
+     * If verifyHeader is set, requests are rejected unless the header matches this value.
+     * Example: 'SUCCESS' for nginx.
+     */
+    verifyValue?: string;
 }
 
 export type ValidationCallback = (cert: PeerCertificate | DetailedPeerCertificate) => boolean | Promise<boolean>;

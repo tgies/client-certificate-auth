@@ -49,11 +49,6 @@ describe('clientCertificateAuth', () => {
       headers: {}
     };
 
-    const mockUnsecureReq = {
-      secure: false,
-      socket: { authorized: false, getPeerCertificate: () => ({}) },
-      headers: {}
-    };
 
     const mockUnauthReq = {
       secure: true,
@@ -244,64 +239,6 @@ describe('clientCertificateAuth', () => {
       });
     });
 
-    describe('redirectInsecure option', () => {
-      it('should NOT redirect by default', done => {
-        let redirectCalled = false;
-        const res = {
-          redirect: () => { redirectCalled = true; }
-        };
-        const middleware = clientCertificateAuth(() => true);
-        middleware(mockUnsecureReq, res, (err) => {
-          assert.equal(redirectCalled, false);
-          // Should fail due to unauthorized, not redirect
-          assert.ok(err instanceof Error);
-          done();
-        });
-      });
-
-      it('should redirect when redirectInsecure is true', () => {
-        let redirectUrl = null;
-        let redirectStatus = null;
-        const req = {
-          secure: false,
-          socket: {},
-          headers: {
-            'host': 'example.com'
-          },
-          url: '/protected'
-        };
-        const res = {
-          redirect: (status, url) => {
-            redirectStatus = status;
-            redirectUrl = url;
-          }
-        };
-        const middleware = clientCertificateAuth(() => true, { redirectInsecure: true });
-        middleware(req, res, () => { });
-
-        assert.equal(redirectStatus, 301);
-        assert.equal(redirectUrl, 'https://example.com/protected');
-      });
-
-      it('should NOT redirect if x-forwarded-proto is https', done => {
-        const req = {
-          secure: false,
-          socket: { authorized: true, getPeerCertificate: getMockPeerCertificate },
-          headers: {
-            'x-forwarded-proto': 'https'
-          }
-        };
-        let redirectCalled = false;
-        const res = {
-          redirect: () => { redirectCalled = true; }
-        };
-        const middleware = clientCertificateAuth(() => true, { redirectInsecure: true });
-        middleware(req, res, () => {
-          assert.equal(redirectCalled, false);
-          done();
-        });
-      });
-    });
 
     describe('header-based certificate extraction', () => {
       let testPem;
@@ -406,6 +343,106 @@ describe('clientCertificateAuth', () => {
         middleware(req, mockRes, (err) => {
           assert.equal(err, undefined);
           done();
+        });
+      });
+
+      describe('verifyHeader/verifyValue options', () => {
+        it('should reject if verifyHeader is set but header is missing', done => {
+          const encodedCert = encodeURIComponent(testPem);
+          const req = {
+            secure: false,
+            socket: { authorized: false },
+            headers: {
+              'x-ssl-client-cert': encodedCert
+              // X-SSL-Client-Verify header is missing
+            }
+          };
+
+          const middleware = clientCertificateAuth(() => true, {
+            certificateHeader: 'X-SSL-Client-Cert',
+            headerEncoding: 'url-pem',
+            verifyHeader: 'X-SSL-Client-Verify',
+            verifyValue: 'SUCCESS'
+          });
+
+          middleware(req, mockRes, (err) => {
+            assert.ok(err instanceof Error);
+            assert.equal(err.status, 401);
+            assert.ok(err.message.includes('Certificate verification failed'));
+            assert.ok(err.message.includes('header missing'));
+            done();
+          });
+        });
+
+        it('should reject if verifyHeader value does not match verifyValue', done => {
+          const encodedCert = encodeURIComponent(testPem);
+          const req = {
+            secure: false,
+            socket: { authorized: false },
+            headers: {
+              'x-ssl-client-cert': encodedCert,
+              'x-ssl-client-verify': 'FAILED:unable to verify'
+            }
+          };
+
+          const middleware = clientCertificateAuth(() => true, {
+            certificateHeader: 'X-SSL-Client-Cert',
+            headerEncoding: 'url-pem',
+            verifyHeader: 'X-SSL-Client-Verify',
+            verifyValue: 'SUCCESS'
+          });
+
+          middleware(req, mockRes, (err) => {
+            assert.ok(err instanceof Error);
+            assert.equal(err.status, 401);
+            assert.ok(err.message.includes('Certificate verification failed'));
+            assert.ok(err.message.includes('FAILED:unable to verify'));
+            done();
+          });
+        });
+
+        it('should allow request if verifyHeader matches verifyValue', done => {
+          const encodedCert = encodeURIComponent(testPem);
+          const req = {
+            secure: false,
+            socket: { authorized: false },
+            headers: {
+              'x-ssl-client-cert': encodedCert,
+              'x-ssl-client-verify': 'SUCCESS'
+            }
+          };
+
+          const middleware = clientCertificateAuth((cert) => {
+            assert.equal(cert.subject.CN, 'Header Test Client');
+            return true;
+          }, {
+            certificateHeader: 'X-SSL-Client-Cert',
+            headerEncoding: 'url-pem',
+            verifyHeader: 'X-SSL-Client-Verify',
+            verifyValue: 'SUCCESS'
+          });
+
+          middleware(req, mockRes, (err) => {
+            assert.equal(err, undefined);
+            done();
+          });
+        });
+
+        it('should not check verifyHeader for socket-based extraction', done => {
+          // Socket-based auth should ignore verifyHeader
+          const middleware = clientCertificateAuth((cert) => {
+            assert.equal(cert.subject.CN, 'Proctor Davenport');
+            return true;
+          }, {
+            verifyHeader: 'X-SSL-Client-Verify',
+            verifyValue: 'SUCCESS'
+            // No certificateSource or certificateHeader = socket-based
+          });
+
+          middleware(mockGoodReq, mockRes, (err) => {
+            assert.equal(err, undefined);
+            done();
+          });
         });
       });
     });
