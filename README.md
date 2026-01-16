@@ -171,6 +171,57 @@ app.use(clientCertificateAuth((cert) => {
 
 When `includeChain: true`, the certificate object includes `issuerCertificate` linking to the issuer's certificate (and so on up the chain). This works consistently for both socket-based and header-based extraction.
 
+### User Login
+
+Client certificates provide cryptographically-verified identity, making them ideal for user authentication. Map certificate fields to user accounts in your database:
+
+```javascript
+app.use(clientCertificateAuth(async (cert) => {
+  // Option 1: Lookup by fingerprint (most secure - immutable per certificate)
+  const user = await db.users.findOne({ certFingerprint: cert.fingerprint });
+  
+  // Option 2: Lookup by email (from subject or SAN)
+  // const user = await db.users.findOne({ email: cert.subject.emailAddress });
+  
+  // Option 3: Lookup by Common Name
+  // const user = await db.users.findOne({ certCN: cert.subject.CN });
+  
+  if (!user) {
+    throw new Error('Certificate not registered to any user');
+  }
+  
+  return true;
+}));
+```
+
+To make the user available to downstream handlers, attach it to the request:
+
+```javascript
+app.use(clientCertificateAuth(async (cert, req) => {
+  const user = await db.users.findOne({ certFingerprint: cert.fingerprint });
+  if (!user) throw new Error('Unknown certificate');
+  
+  req.user = user;  // Attach for downstream routes
+  return true;
+}));
+
+app.get('/profile', (req, res) => {
+  res.json({ 
+    name: req.user.name,
+    certificateCN: req.clientCertificate.subject.CN 
+  });
+});
+```
+
+**Lookup strategies:**
+
+| Field | Pros | Cons |
+|-------|------|------|
+| `fingerprint` | Unique, immutable | Must register each cert |
+| `subject.emailAddress` | Human-readable | Ensure uniqueness |
+| `subject.CN` | Simple to configure | May not be unique |
+| `serialNumber` + issuer | Traceable to your CA | More complex queries |
+
 ## Reverse Proxy / Load Balancer Support
 
 When your application runs behind a TLS-terminating reverse proxy, the client certificate is available via HTTP headers instead of the TLS socket. This middleware supports reading certificates from headers for common proxies.
