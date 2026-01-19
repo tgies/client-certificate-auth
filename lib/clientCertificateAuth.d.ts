@@ -1,3 +1,4 @@
+/// <reference path="./global.d.ts" />
 import type { IncomingMessage, ServerResponse } from 'http';
 import type { TLSSocket, PeerCertificate, DetailedPeerCertificate } from 'tls';
 import type { CertificateSource, HeaderEncoding } from './parsers.js';

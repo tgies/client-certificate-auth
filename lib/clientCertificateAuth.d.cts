@@ -1,15 +1,6 @@
+/// <reference path="./global.d.ts" />
 import type { IncomingMessage, ServerResponse } from 'http';
 import type { TLSSocket, PeerCertificate, DetailedPeerCertificate } from 'tls';
-
-/**
- * Known reverse proxy presets.
- */
-export type CertificateSource = 'aws-alb' | 'envoy' | 'cloudflare' | 'traefik';
-
-/**
- * Header encoding formats.
- */
-export type HeaderEncoding = 'url-pem' | 'url-pem-aws' | 'xfcc' | 'base64-der' | 'rfc9440';
 
 /**
  * HTTP Error with status code for Express error handling middleware.
@@ -46,37 +37,19 @@ export interface ClientCertResponse extends ServerResponse {
     redirect(statusOrUrl: number | string, url?: string): void;
 }
 
+/**
+ * Options for the synchronous CommonJS wrapper.
+ *
+ * @remarks
+ * The sync wrapper only supports socket-based certificate extraction.
+ * For header-based extraction (reverse proxy support), use the async loader:
+ * ```javascript
+ * const auth = await require('client-certificate-auth').load();
+ * ```
+ */
 export interface ClientCertificateAuthOptions {
     /**
-     * Use a preset configuration for a known reverse proxy.
-     * Header-based certs are only checked if this or certificateHeader is set.
-     * @see https://github.com/tgies/client-certificate-auth#reverse-proxy-support
-     */
-    certificateSource?: CertificateSource;
-
-
-    /**
-     * Custom header name to read certificate from.
-     * Overrides preset header name if also using certificateSource.
-     */
-    certificateHeader?: string;
-
-    /**
-     * How to decode the header value.
-     * Required when using certificateHeader without certificateSource.
-     */
-    headerEncoding?: HeaderEncoding;
-
-    /**
-     * If header-based extraction is configured but fails (header absent or malformed),
-     * try socket.getPeerCertificate() instead of returning 401.
-     * @default false
-     */
-    fallbackToSocket?: boolean;
-
-    /**
      * If true, include the full certificate chain via cert.issuerCertificate.
-     * Applies to both socket and header-based extraction.
      * @default false
      */
     includeChain?: boolean;

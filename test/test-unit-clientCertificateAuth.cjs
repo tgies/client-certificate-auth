@@ -319,6 +319,57 @@ describe('clientCertificateAuth (CommonJS)', () => {
         });
     });
 
+    describe('unsupported options validation', () => {
+        const unsupportedOptions = [
+            'certificateSource',
+            'certificateHeader',
+            'headerEncoding',
+            'fallbackToSocket',
+            'verifyHeader',
+            'verifyValue'
+        ];
+
+        unsupportedOptions.forEach(option => {
+            it(`should throw error when ${option} option is passed`, () => {
+                assert.throws(
+                    () => clientCertificateAuth(() => true, { [option]: 'test' }),
+                    {
+                        name: 'Error',
+                        message: new RegExp(`CJS sync wrapper does not support: ${option}`)
+                    }
+                );
+            });
+        });
+
+        it('should throw error listing all unsupported options used', () => {
+            assert.throws(
+                () => clientCertificateAuth(() => true, {
+                    certificateSource: 'aws-alb',
+                    headerEncoding: 'url-pem'
+                }),
+                {
+                    name: 'Error',
+                    message: /CJS sync wrapper does not support: certificateSource, headerEncoding/
+                }
+            );
+        });
+
+        it('should include load() guidance in error message', () => {
+            assert.throws(
+                () => clientCertificateAuth(() => true, { certificateHeader: 'X-SSL-Cert' }),
+                {
+                    message: /Use require\(\.\.\.\)\.load\(\) for full features/
+                }
+            );
+        });
+
+        it('should allow includeChain option without error', () => {
+            assert.doesNotThrow(
+                () => clientCertificateAuth(() => true, { includeChain: true })
+            );
+        });
+    });
+
     describe('load() async ESM loader', () => {
         it(
             'should return a function that works identically to the sync export',
