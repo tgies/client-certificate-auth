@@ -10,6 +10,14 @@ export default {
         'lib/**/*.js',
         'lib/**/*.cjs',
     ],
+    coverageThreshold: {
+        global: {
+            branches: 100,
+            functions: 100,
+            lines: 100,
+            statements: 100,
+        },
+    },
     testTimeout: 10000,
     verbose: true,
 };
