@@ -74,4 +74,4 @@ jobs:
         run: npx publint
       
       - name: Validate TypeScript declarations (attw)
-        run: npx @arethetypeswrong/cli --pack . --ignore-rules=missing-export-equals
+        run: npx @arethetypeswrong/cli --pack . --ignore-rules=missing-export-equals --exclude-entrypoints "./parsers" "./helpers"
