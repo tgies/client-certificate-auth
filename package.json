@@ -38,7 +38,7 @@
   "main": "./lib/clientCertificateAuth.cjs",
   "types": "./lib/clientCertificateAuth.d.ts",
   "engines": {
-    "node": ">= 18"
+    "node": ">= 20"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",

@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [18, 20, 22, 24, 25]
+        node-version: [20, 22, 24, 25]
     steps:
       - uses: actions/checkout@v4
       
@@ -31,10 +31,31 @@ jobs:
       - name: Run tests with coverage
         run: npm run test:coverage
       
-      - name: Upload coverage to Codecov
+      - name: Upload coverage artifact
         if: matrix.node-version == 24
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage/
+          retention-days: 1
+
+  coverage:
+    name: Upload Coverage
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download coverage artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage
+          path: coverage/
+      
+      - name: Upload to Codecov
         uses: codecov/codecov-action@v5
         with:
+          token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: true
 
   typecheck:
@@ -75,3 +96,4 @@ jobs:
       
       - name: Validate TypeScript declarations (attw)
         run: npx @arethetypeswrong/cli --pack . --ignore-rules=missing-export-equals --exclude-entrypoints "./parsers" "./helpers"
+
