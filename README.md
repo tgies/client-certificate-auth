@@ -12,7 +12,7 @@ Express/Connect middleware for client SSL certificate authentication (mTLS).
 npm install client-certificate-auth
 ```
 
-**Requirements:** Node.js >= 18
+**Requirements:** Node.js >= 20
 
 ## Synopsis
 
