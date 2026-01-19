@@ -1,2 +1,9 @@
 .git*
-.travis.yml
+.github/
+jest.config.js
+eslint.config.js
+tsconfig.json
+test/
+node_modules/
+coverage/
+.c8_output/

@@ -1,0 +1,11 @@
+# Traefik static configuration
+entryPoints:
+  websecure:
+    address: ":443"
+
+providers:
+  file:
+    filename: /etc/traefik/dynamic.yaml
+
+log:
+  level: INFO

@@ -1,0 +1,65 @@
+services:
+  backend:
+    build:
+      context: ../..
+      dockerfile: test/docker/backend/Dockerfile
+    networks:
+      - proxy-net
+
+  # nginx with strict client cert verification (ssl_verify_client on)
+  nginx-strict:
+    image: nginx:alpine
+    ports:
+      - "8443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ${CERTS_DIR}:/certs:ro
+    depends_on:
+      - backend
+    networks:
+      - proxy-net
+
+  # nginx with optional client cert verification (ssl_verify_client optional_no_ca)
+  nginx-optional:
+    image: nginx:alpine
+    ports:
+      - "8444:443"
+    volumes:
+      - ./nginx/nginx-optional.conf:/etc/nginx/nginx.conf:ro
+      - ${CERTS_DIR}:/certs:ro
+    depends_on:
+      - backend
+    networks:
+      - proxy-net
+
+  # Envoy proxy with XFCC header
+  envoy:
+    image: envoyproxy/envoy:v1.28-latest
+    ports:
+      - "8445:443"
+    volumes:
+      - ./envoy/envoy.yaml:/etc/envoy/envoy.yaml:ro
+      - ${CERTS_DIR}:/certs:ro
+    command: [ "envoy", "-c", "/etc/envoy/envoy.yaml" ]
+    depends_on:
+      - backend
+    networks:
+      - proxy-net
+
+  # Traefik proxy with PassTLSClientCert middleware
+  traefik:
+    image: traefik:v3.0
+    ports:
+      - "8446:443"
+    volumes:
+      - ./traefik/traefik.yaml:/etc/traefik/traefik.yaml:ro
+      - ./traefik/dynamic.yaml:/etc/traefik/dynamic.yaml:ro
+      - ${CERTS_DIR}:/certs:ro
+    depends_on:
+      - backend
+    networks:
+      - proxy-net
+
+networks:
+  proxy-net:
+    driver: bridge

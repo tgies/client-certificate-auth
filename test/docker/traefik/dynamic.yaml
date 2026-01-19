@@ -1,0 +1,38 @@
+# Traefik dynamic configuration
+tls:
+  certificates:
+    - certFile: /certs/server.pem
+      keyFile: /certs/server.key
+  options:
+    default:
+      clientAuth:
+        caFiles:
+          - /certs/ca.pem
+        clientAuthType: RequireAndVerifyClientCert
+
+http:
+  routers:
+    backend:
+      rule: "PathPrefix(`/`)"
+      entryPoints:
+        - websecure
+      service: backend
+      middlewares:
+        - addPrefix
+        - passTLSClientCert
+      tls:
+        options: default
+
+  middlewares:
+    addPrefix:
+      addPrefix:
+        prefix: "/traefik"
+    passTLSClientCert:
+      passTLSClientCert:
+        pem: true
+
+  services:
+    backend:
+      loadBalancer:
+        servers:
+          - url: "http://backend:3000"
