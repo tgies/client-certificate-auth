@@ -268,19 +268,19 @@ For nginx, HAProxy, Google Cloud Load Balancer, or other proxies with configurab
 ```javascript
 // nginx with $ssl_client_escaped_cert
 app.use(clientCertificateAuth(checkAuth, {
-  certificateHeader: 'X-SSL-Client-Cert',
+  certificateHeader: 'X-SSL-Whatever-You-Use',
   headerEncoding: 'url-pem'
 }));
 
 // Google Cloud Load Balancer (RFC 9440)
 app.use(clientCertificateAuth(checkAuth, {
-  certificateHeader: 'Client-Cert',
+  certificateHeader: 'X-SSL-Whatever-You-Use',
   headerEncoding: 'rfc9440'
 }));
 
 // HAProxy with base64 DER
 app.use(clientCertificateAuth(checkAuth, {
-  certificateHeader: 'X-SSL-Client-Cert',
+  certificateHeader: 'X-SSL-Whatever-You-Use',
   headerEncoding: 'base64-der'
 }));
 ```
@@ -467,4 +467,3 @@ app.use(clientCertificateAuth((cert) => cert.subject.CN === 'admin'));
 ## License
 
 MIT © Tony Gies
-
