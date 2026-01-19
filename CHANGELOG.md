@@ -7,21 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.0.0] - 2024-12-24
 
-### ⚠️ Breaking Changes
+### Breaking Changes
 
 - **Node.js 18+ required** (previously supported Node 0.6-0.10)
 - **ES Modules by default** — use `import` instead of `require`
 - **`req.socket` instead of `req.connection`** — aligns with Node.js core API changes
-- **HTTPS redirect is now opt-in** — pass `{ redirectInsecure: true }` to enable
+- **No automatic HTTP→HTTPS redirect** — removed `redirectInsecure` option entirely
 
 ### Added
 
-- TypeScript type declarations
+- **Reverse proxy/load balancer support** — extract certificates from HTTP headers
+  - Presets: `aws-alb`, `envoy`, `cloudflare`, `traefik`
+  - Custom headers with configurable encoding (`url-pem`, `base64-der`, `xfcc`, `rfc9440`)
+  - `fallbackToSocket` option for hybrid deployments
+- **Certificate attached to request** — `req.clientCertificate` available in downstream handlers
+- **Authorization helpers** — pre-built callbacks via `client-certificate-auth/helpers`
+  - `allowCN`, `allowFingerprints`, `allowOU`, `allowOrganization`, `allowEmail`
+  - `allowSerial`, `allowSAN`, `allowIssuer`, `allowSubject`
+  - `allOf`, `anyOf` combinators
+- **Granular authorization feedback** — throw custom errors for specific rejection reasons
+- **Certificate chain access** — `includeChain` option for PKI scenarios
+- **Verification header support** — `verifyHeader` and `verifyValue` for defense-in-depth
+- TypeScript type declarations with `ClientCertRequest` interface
 - ES Module support with conditional exports
-- Promise/async callback support
-- `options` parameter with `redirectInsecure` option
-- GitHub Actions CI (Node 18, 20, 22)
-- 100% test coverage
+- Promise/async callback support (callback receives `(cert, req)` signature)
+- CommonJS wrapper with option validation
+- GitHub Actions CI (Node 18, 20, 22, 24)
+- 100% test coverage enforced via Codecov
+- Automated npm publishing with provenance on version tags
+- SECURITY.md with GitHub Private Vulnerability Reporting
+- CONTRIBUTING.md with development guidelines
 
 ### Changed
 
@@ -35,11 +50,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Support for Node.js < 18
 - Legacy callback signature (`function(cert, done)`) — use Promises instead
-- Automatic HTTP→HTTPS redirect (now opt-in)
+- `redirectInsecure` option — use reverse proxy or separate middleware if needed
 
 ### Security
 
-- HTTPS redirect behavior is now opt-in to prevent MITM exposure on initial HTTP request
+- Removed automatic HTTPS redirect to prevent MITM exposure on initial HTTP request
+- Added `verifyHeader`/`verifyValue` options to validate proxy certificate verification status
 
 ## [0.3.0] - 2013-04-30
 
