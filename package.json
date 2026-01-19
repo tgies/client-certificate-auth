@@ -58,6 +58,7 @@
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --testPathIgnorePatterns=test-e2e",
     "test:coverage": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage --testPathIgnorePatterns=test-e2e",
     "test:e2e": "node --experimental-vm-modules node_modules/jest/bin/jest.js test/test-e2e-proxies.js --runInBand",
+    "test:all": "npm run test && npm run test:e2e",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "build:types": "tsc --declaration --emitDeclarationOnly --outDir lib",
