@@ -1,0 +1,6 @@
+name: "CodeQL config for client-certificate-auth"
+
+# Exclude test files from security scanning - they intentionally contain
+# test fixtures with "suspicious" patterns that would trigger false positives
+paths-ignore:
+  - 'test/**'
