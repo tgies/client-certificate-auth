@@ -312,6 +312,18 @@ describe('parsers module', () => {
             assert.equal(result.subject.CN, 'Test Parser Client');
             assert.equal(result.issuerCertificate.subject.CN, 'Test Parser Client');
         });
+
+        it('should not set issuerCertificate on the last cert in chain', () => {
+            // Verifies the chain linking loop (i < certs.length - 1) stops correctly
+            const cert1 = encodeAsCloudflare(testDer);
+            const cert2 = encodeAsCloudflare(testDer);
+
+            const result = parseBase64Der(`${cert1},${cert2}`);
+            assert.ok(result);
+            assert.ok(result.issuerCertificate, 'first cert should have issuerCertificate');
+            assert.equal(result.issuerCertificate.issuerCertificate, undefined,
+                'last cert in chain should not have issuerCertificate set by parser');
+        });
     });
 
     describe('parseRfc9440 (GCP format)', () => {
@@ -393,6 +405,27 @@ describe('parsers module', () => {
 
         it('should return null for unknown encoding', () => {
             assert.equal(parseHeaderValue('test', 'unknown-encoding'), null);
+        });
+
+        it('should return null for url-pem with empty input', () => {
+            // Explicitly tests url-pem case in switch (kills switch body mutation)
+            assert.equal(parseHeaderValue('', 'url-pem'), null);
+        });
+
+        it('should return null for url-pem-aws with empty input', () => {
+            assert.equal(parseHeaderValue('', 'url-pem-aws'), null);
+        });
+
+        it('should return null for xfcc with empty input', () => {
+            assert.equal(parseHeaderValue('', 'xfcc'), null);
+        });
+
+        it('should return null for base64-der with empty input', () => {
+            assert.equal(parseHeaderValue('', 'base64-der'), null);
+        });
+
+        it('should return null for rfc9440 with empty input', () => {
+            assert.equal(parseHeaderValue('', 'rfc9440'), null);
         });
     });
 
