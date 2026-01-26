@@ -7,6 +7,8 @@ Express/Connect middleware for client SSL certificate authentication (mTLS).
 [![codecov](https://codecov.io/gh/tgies/client-certificate-auth/graph/badge.svg)](https://codecov.io/gh/tgies/client-certificate-auth)
 [![stryker mutation testing](https://img.shields.io/endpoint?style=flat&url=https%3A%2F%2Fbadge-api.stryker-mutator.io%2Fgithub.com%2Ftgies%2Fclient-certificate-auth%2Fmaster)](https://dashboard.stryker-mutator.io/reports/github.com/tgies/client-certificate-auth/master)
 
+100% line/branch/function/statement coverage, plus mutation testing and E2E tests against real nginx/Envoy/Traefik containers. ~3,000 lines of tests for ~850 lines of code.
+
 ## Installation
 
 ```bash
@@ -459,6 +461,19 @@ const clientCertificateAuth = require('client-certificate-auth');
 
 app.use(clientCertificateAuth((cert) => cert.subject.CN === 'admin'));
 ```
+
+## Testing
+
+This library has comprehensive test coverage across multiple layers:
+
+| Layer | Description |
+|-------|-------------|
+| **Unit tests** | 100% line/branch/function/statement coverage, enforced in CI |
+| **Integration tests** | Real HTTPS servers with mTLS handshakes |
+| **E2E proxy tests** | Docker containers running nginx, Envoy, and Traefik with actual certificate forwarding |
+| **Mutation testing** | [Stryker](https://dashboard.stryker-mutator.io/reports/github.com/tgies/client-certificate-auth/master) verifies tests detect code changes |
+
+The E2E tests spin up real reverse proxies, generate fresh certificates, and verify the middleware correctly parses each proxy's header format through a variety of successful and failed authentication attempts.
 
 ## Security Notes
 
