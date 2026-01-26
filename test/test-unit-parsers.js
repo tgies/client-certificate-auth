@@ -231,6 +231,43 @@ describe('parsers module', () => {
             const xfcc = 'Hash=abc;Cert="invalid%20certificate"';
             assert.equal(parseXfcc(xfcc), null);
         });
+
+        it('should return null when value has only starting quote (malformed)', () => {
+            // Tests: value.startsWith('"') && value.endsWith('"')
+            // If only one quote is present, the quote becomes part of the value
+            // and breaks URL decoding or certificate parsing
+            const encodedPem = encodeURIComponent(testPem);
+            const xfcc = `Hash=abc;Cert="${encodedPem}`;  // Missing end quote
+            const cert = parseXfcc(xfcc);
+            // Fails because leading quote becomes part of value
+            assert.equal(cert, null);
+        });
+
+        it('should return null when value has only ending quote (malformed)', () => {
+            // Tests: value.startsWith('"') && value.endsWith('"')
+            const encodedPem = encodeURIComponent(testPem);
+            const xfcc = `Hash=abc;Cert=${encodedPem}"`;  // Only end quote
+            const cert = parseXfcc(xfcc);
+            // Fails because trailing quote becomes part of value
+            assert.equal(cert, null);
+        });
+
+        it('should properly strip both quotes when present', () => {
+            // Tests that slice(1, -1) actually removes quotes
+            const encodedPem = encodeURIComponent(testPem);
+            const xfcc = `Cert="${encodedPem}"`;
+            const cert = parseXfcc(xfcc);
+            assert.ok(cert);
+            assert.equal(cert.subject.CN, 'Test Parser Client');
+        });
+
+        it('should handle empty segments gracefully', () => {
+            // Tests the continue statement when eqIndex === -1
+            const encodedPem = encodeURIComponent(testPem);
+            const xfcc = `;;Cert="${encodedPem}";;`;
+            const cert = parseXfcc(xfcc);
+            assert.ok(cert);
+        });
     });
 
     describe('parseBase64Der (Cloudflare format)', () => {
@@ -434,6 +471,28 @@ describe('parsers module', () => {
             });
             assert.ok(cert);
             assert.equal(cert.subject.CN, 'Test Parser Client');
+        });
+
+        it('should return null when only headerName is set (no encoding)', () => {
+            const cert = getCertificateFromHeaders(
+                { 'x-custom': 'data' },
+                { certificateHeader: 'X-Custom' } // No headerEncoding
+            );
+            assert.equal(cert, null);
+        });
+
+        it('should return null when only encoding is set (no header)', () => {
+            const cert = getCertificateFromHeaders(
+                { 'x-custom': 'data' },
+                { headerEncoding: 'url-pem' } // No certificateHeader
+            );
+            assert.equal(cert, null);
+        });
+
+        it('should return null for empty string header value', () => {
+            const headers = { 'x-amzn-mtls-clientcert': '' };
+            const cert = getCertificateFromHeaders(headers, { certificateSource: 'aws-alb' });
+            assert.equal(cert, null);
         });
     });
 

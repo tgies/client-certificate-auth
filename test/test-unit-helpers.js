@@ -78,6 +78,23 @@ describe('helpers', () => {
             const check = allowFingerprints(['AB:CD']);
             assert.equal(check({}), false);
         });
+
+        it('should match when cert has lowercase fingerprint and allowed has uppercase', () => {
+            const certLowerFp = { fingerprint: 'ab:cd:ef:01:23:45:67:89:ab:cd:ef:01:23:45:67:89:ab:cd:ef:01' };
+            const check = allowFingerprints(['AB:CD:EF:01:23:45:67:89:AB:CD:EF:01:23:45:67:89:AB:CD:EF:01']);
+            assert.equal(check(certLowerFp), true);
+        });
+
+        it('should match when both have mixed case', () => {
+            const certMixedFp = { fingerprint: 'Ab:Cd:Ef:01:23:45:67:89:aB:cD:eF:01:23:45:67:89:AB:cd:EF:01' };
+            const check = allowFingerprints(['ab:cd:ef:01:23:45:67:89:AB:CD:EF:01:23:45:67:89:ab:cd:ef:01']);
+            assert.equal(check(certMixedFp), true);
+        });
+
+        it('should correctly remove SHA256: prefix regardless of case', () => {
+            const check = allowFingerprints(['sha256:AB:CD:EF:01:23:45:67:89:AB:CD:EF:01:23:45:67:89:AB:CD:EF:01']);
+            assert.equal(check(mockCert), true);
+        });
     });
 
     describe('allowIssuer', () => {
@@ -182,6 +199,24 @@ describe('helpers', () => {
         it('should handle missing serialNumber gracefully', () => {
             const check = allowSerial(['0123']);
             assert.equal(check({}), false);
+        });
+
+        it('should match when cert serial has colons and allowed has none', () => {
+            const certWithColons = { serialNumber: 'AA:BB:CC:DD' };
+            const check = allowSerial(['AABBCCDD']);
+            assert.equal(check(certWithColons), true);
+        });
+
+        it('should match when allowed serial has colons and cert has none', () => {
+            const certNoColons = { serialNumber: 'AABBCCDD' };
+            const check = allowSerial(['AA:BB:CC:DD']);
+            assert.equal(check(certNoColons), true);
+        });
+
+        it('should match lowercase cert serial against uppercase allowed', () => {
+            const certLower = { serialNumber: 'aabbccdd' };
+            const check = allowSerial(['AABBCCDD']);
+            assert.equal(check(certLower), true);
         });
     });
 
