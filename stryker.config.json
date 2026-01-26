@@ -25,5 +25,8 @@
   "ignorePatterns": [
     "test/test-e2e-*.js"
   ],
-  "coverageAnalysis": "perTest"
+  "coverageAnalysis": "perTest",
+  "htmlReporter": {
+    "fileName": "reports/mutation/mutation.html"
+  }
 }
