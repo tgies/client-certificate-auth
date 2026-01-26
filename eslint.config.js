@@ -21,15 +21,16 @@ export default [
         }
     },
     {
-        // Test files can use Jest globals
+        // Test files can use both Node and Jest globals
         files: ['test/**/*.js', 'test/**/*.cjs'],
         languageOptions: {
             globals: {
+                ...globals.node,
                 ...globals.jest
             }
         }
     },
     {
-        ignores: ['node_modules/**', 'lib/**/*.cjs', 'lib/**/*.d.ts', 'lib/**/*.d.cts']
+        ignores: ['node_modules/**', 'lib/**/*.cjs', 'lib/**/*.d.ts', 'lib/**/*.d.cts', '.stryker-tmp/**']
     }
 ];
