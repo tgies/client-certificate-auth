@@ -5,6 +5,7 @@ Express/Connect middleware for client SSL certificate authentication (mTLS).
 [![CI](https://github.com/tgies/client-certificate-auth/actions/workflows/ci.yml/badge.svg)](https://github.com/tgies/client-certificate-auth/actions/workflows/ci.yml)
 [![npm version](https://badge.fury.io/js/client-certificate-auth.svg)](https://www.npmjs.com/package/client-certificate-auth)
 [![codecov](https://codecov.io/gh/tgies/client-certificate-auth/graph/badge.svg)](https://codecov.io/gh/tgies/client-certificate-auth)
+[![stryker mutation testing](https://img.shields.io/endpoint?style=flat&url=https%3A%2F%2Fbadge-api.stryker-mutator.io%2Fgithub.com%2Ftgies%2Fclient-certificate-auth%2Fmaster)](https://dashboard.stryker-mutator.io/reports/github.com/tgies/client-certificate-auth/master)
 
 ## Installation
 
