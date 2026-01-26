@@ -13,3 +13,7 @@ coverage/
 *.swp
 *.swo
 
+
+# stryker temp files
+.stryker-tmp
+reports/

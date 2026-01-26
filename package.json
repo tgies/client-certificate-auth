@@ -41,6 +41,8 @@
     "node": ">= 20"
   },
   "devDependencies": {
+    "@stryker-mutator/core": "^9.4.0",
+    "@stryker-mutator/jest-runner": "^9.4.0",
     "@types/express": "^5.0.0",
     "@types/node": "^22.10.2",
     "c8": "^10.1.3",
