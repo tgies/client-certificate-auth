@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-02-05
+
+### Added
+
+- **Audit logging hooks** — `onAuthenticated` and `onRejected` callbacks for logging authentication decisions
+  - Fire-and-forget: hooks don't block request processing
+  - Error-safe: hook errors are caught and logged, never affect the request
+  - Async-friendly: async hooks run in background
+- **WebSocket support documentation** — examples for `ws` and Socket.IO libraries
+- WebSocket integration tests verifying mTLS works with upgrade requests
+
+### Fixed
+
+- **TypeScript type augmentation** — `Error.status` now visible to external consumers
+  - Replaced `/// <reference path>` directive with inline `declare global` syntax
+
 ## [1.0.0] - 2024-12-24
 
 ### Breaking Changes
