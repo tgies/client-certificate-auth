@@ -63,6 +63,29 @@ export interface ClientCertificateAuthOptions {
      */
     includeChain?: boolean;
 
+    /**
+     * Called when a client is successfully authenticated.
+     * Fire-and-forget: does not block the request, errors are logged to console.error.
+     * @param cert - The validated client certificate
+     * @param req - The HTTP request object
+     */
+    onAuthenticated?: (
+        cert: PeerCertificate | DetailedPeerCertificate,
+        req: ClientCertRequest
+    ) => void | Promise<void>;
+
+    /**
+     * Called when authentication is rejected.
+     * Fire-and-forget: does not block the request, errors are logged to console.error.
+     * @param cert - The client certificate (null if extraction failed)
+     * @param req - The HTTP request object
+     * @param reason - Why authentication was rejected
+     */
+    onRejected?: (
+        cert: PeerCertificate | DetailedPeerCertificate | null,
+        req: ClientCertRequest,
+        reason: string
+    ) => void | Promise<void>;
 }
 
 export type ValidationCallback = (cert: PeerCertificate | DetailedPeerCertificate) => boolean | Promise<boolean>;

@@ -112,6 +112,48 @@ err.status = 403;
 throw err;
 ```
 
+### Audit Logging Hooks
+
+Use `onAuthenticated` and `onRejected` hooks to log authentication decisions without affecting request processing:
+
+```javascript
+app.use(clientCertificateAuth(checkAuth, {
+  onAuthenticated: (cert, req) => {
+    logger.info('mTLS auth success', {
+      cn: cert.subject.CN,
+      fingerprint: cert.fingerprint,
+      path: req.url,
+      ip: req.ip
+    });
+  },
+  onRejected: (cert, req, reason) => {
+    logger.warn('mTLS auth failed', {
+      cn: cert?.subject?.CN,
+      reason,
+      path: req.url,
+      ip: req.ip
+    });
+  }
+}));
+```
+
+**Hook characteristics:**
+
+- **Fire-and-forget**: Hooks don't block request processing. Async hooks run in the background.
+- **Error-safe**: Hook errors are caught and logged to `console.error`, never affecting the request.
+- **Cert may be null**: In `onRejected`, `cert` is `null` when certificate extraction failed (socket not authorized, header missing, etc.)
+
+**Rejection reasons:**
+
+| Reason | Description |
+|--------|-------------|
+| `socket_not_authorized` | TLS socket authorization failed |
+| `certificate_not_retrievable` | Socket authorized but cert couldn't be read |
+| `header_missing_or_malformed` | Certificate header absent or unparseable |
+| `verification_header_mismatch` | Proxy verify header didn't match expected value |
+| `callback_returned_false` | Your callback returned `false` |
+| *(error message)* | Your callback threw an error |
+
 ## API
 
 ### `clientCertificateAuth(callback, options?)`
@@ -130,6 +172,8 @@ Returns Express middleware.
 | `options.includeChain` | `boolean` | If `true`, include full certificate chain via `cert.issuerCertificate` (default: `false`) |
 | `options.verifyHeader` | `string` | Header name containing verification status from proxy (e.g., `'X-SSL-Client-Verify'`) |
 | `options.verifyValue` | `string` | Expected value indicating successful verification (e.g., `'SUCCESS'`) |
+| `options.onAuthenticated` | `(cert, req) => void` | Called on successful authentication (fire-and-forget) |
+| `options.onRejected` | `(cert, req, reason) => void` | Called on authentication failure (fire-and-forget) |
 
 **Certificate Object:**
 
