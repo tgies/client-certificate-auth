@@ -1,9 +1,18 @@
-/// <reference path="./global.d.ts" />
 import type { IncomingMessage, ServerResponse } from 'http';
 import type { TLSSocket, PeerCertificate, DetailedPeerCertificate } from 'tls';
 import type { CertificateSource, HeaderEncoding } from './parsers.js';
 
 export type { CertificateSource, HeaderEncoding };
+
+/**
+ * Augment the global Error interface for Express/Connect middleware conventions.
+ */
+declare global {
+    interface Error {
+        /** HTTP status code for error responses */
+        status?: number;
+    }
+}
 
 /**
  * HTTP Error with status code for Express error handling middleware.
@@ -87,6 +96,7 @@ export interface ClientCertificateAuthOptions {
      * Example: 'SUCCESS' for nginx.
      */
     verifyValue?: string;
+
 }
 
 export type ValidationCallback = (cert: PeerCertificate | DetailedPeerCertificate) => boolean | Promise<boolean>;
