@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security Vulnerability
+    url: https://github.com/tgies/client-certificate-auth/security/advisories/new
+    about: Report security vulnerabilities through GitHub's private reporting. Do not open a public issue.

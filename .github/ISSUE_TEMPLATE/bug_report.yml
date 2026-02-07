@@ -1,0 +1,116 @@
+name: Bug Report
+description: Report a bug in client-certificate-auth
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug! Please fill out the sections below so we can reproduce and fix the issue.
+
+  - type: input
+    id: node-version
+    attributes:
+      label: Node.js Version
+      description: Output of `node --version`
+      placeholder: "v20.11.0"
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating System
+      description: OS and version
+      placeholder: "Ubuntu 24.04 / macOS 15 / Windows 11"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: module-system
+    attributes:
+      label: Module System
+      options:
+        - ESM (import)
+        - CommonJS (require)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: certificate-source
+    attributes:
+      label: Certificate Source
+      description: How does your application receive client certificates?
+      options:
+        - Direct TLS socket (no reverse proxy)
+        - AWS ALB (`certificateSource: 'aws-alb'`)
+        - Envoy / Istio (`certificateSource: 'envoy'`)
+        - Cloudflare (`certificateSource: 'cloudflare'`)
+        - Traefik (`certificateSource: 'traefik'`)
+        - nginx (custom header)
+        - HAProxy (custom header)
+        - Google Cloud Load Balancer (custom header)
+        - Other reverse proxy / load balancer
+    validations:
+      required: true
+
+  - type: textarea
+    id: proxy-config
+    attributes:
+      label: Reverse Proxy Configuration
+      description: If using a reverse proxy, include relevant proxy config (header forwarding, TLS settings, etc.).
+      render: text
+      placeholder: |
+        # e.g. nginx
+        proxy_set_header X-SSL-Client-Cert $ssl_client_escaped_cert;
+        proxy_set_header X-SSL-Client-Verify $ssl_client_verify;
+    validations:
+      required: false
+
+  - type: textarea
+    id: middleware-config
+    attributes:
+      label: Middleware Configuration
+      description: How are you calling clientCertificateAuth? Include relevant options.
+      render: js
+      placeholder: |
+        app.use(clientCertificateAuth(cert => {
+          // ...
+        }, { ... }));
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: Minimal steps to reproduce the issue.
+      placeholder: |
+        1. Configure middleware with ...
+        2. Send request with ...
+        3. Observe ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What you expected to happen.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happened. Include error messages or stack traces if applicable.
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Any other relevant details (reverse proxy setup, certificate details, etc.).
+    validations:
+      required: false
