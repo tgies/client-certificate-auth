@@ -488,6 +488,46 @@ describe('clientCertificateAuth (CommonJS)', () => {
                 });
             });
 
+            it('should not produce console.error when no hooks are configured', done => {
+                const originalError = console.error;
+                let errorCalled = false;
+                console.error = (...args) => {
+                    errorCalled = true;
+                    originalError.apply(console, args);
+                };
+
+                const middleware = clientCertificateAuth(() => true);
+                middleware(mockGoodReq, mockRes, (err) => {
+                    assert.equal(err, undefined);
+                    setImmediate(() => {
+                        console.error = originalError;
+                        assert.equal(errorCalled, false, 'console.error should not be called without hooks');
+                        done();
+                    });
+                });
+            });
+
+            it('should not produce console.error for a successful sync hook', done => {
+                const originalError = console.error;
+                let errorCalled = false;
+                console.error = (...args) => {
+                    errorCalled = true;
+                    originalError.apply(console, args);
+                };
+
+                const middleware = clientCertificateAuth(() => true, {
+                    onAuthenticated: () => { /* sync hook, no error */ }
+                });
+                middleware(mockGoodReq, mockRes, (err) => {
+                    assert.equal(err, undefined);
+                    setImmediate(() => {
+                        console.error = originalError;
+                        assert.equal(errorCalled, false, 'console.error should not be called for successful sync hooks');
+                        done();
+                    });
+                });
+            });
+
             it('should catch and log async hook errors without affecting request', done => {
                 const originalError = console.error;
                 let errorLogged = false;

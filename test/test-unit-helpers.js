@@ -274,6 +274,14 @@ describe('helpers', () => {
             const check = allowSAN(['other']);
             assert.equal(check(certMalformedSAN), false);
         });
+
+        it('should match value-only for SAN with short type prefix', () => {
+            // Kills UnaryOperator mutation: colonIdx !== -1 → colonIdx !== +1
+            // IP: has colon at index 2, but a synthetic 1-char prefix has colon at index 1
+            const cert = { subjectaltname: 'X:short-prefix-value' };
+            const check = allowSAN(['short-prefix-value']);
+            assert.equal(check(cert), true);
+        });
     });
 
     describe('allowEmail', () => {
@@ -309,7 +317,7 @@ describe('helpers', () => {
         });
 
         it('should handle SAN entries separated by multiple spaces', () => {
-            const cert = { subjectaltname: 'email:user@test.com,  DNS:example.com' };
+            const cert = { subjectaltname: 'DNS:example.com,  email:user@test.com' };
             assert.equal(allowEmail(['user@test.com'])(cert), true);
         });
 
