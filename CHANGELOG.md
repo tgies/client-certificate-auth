@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2026-02-07
+
+### Fixed
+
+- **Partial `verifyHeader`/`verifyValue` throws** — providing only one of the pair now throws at construction instead of silently skipping the verification check
+- **Multi-element Envoy XFCC headers** — `parseXfcc()` now splits on comma first to extract the first proxy hop's certificate, fixing incorrect parsing in multi-hop Envoy deployments
+- **CJS `load()` return type** — the TypeScript declaration for `require('client-certificate-auth').load()` now correctly reflects the full ESM options (e.g., `certificateSource`, `fallbackToSocket`)
+- **`req` passed to authorization callback** — the callback now receives `(cert, req)` as documented, enabling per-request authorization logic
+
+### Changed
+
+- Publish workflow uses `lts/*` Node.js instead of hardcoded `25.x`
+- Publish workflow runs `npm run typecheck` before tests
+- Added `.editorconfig` for consistent editor settings
+- Added callback type validation (throws `TypeError` if callback is not a function)
+- Updated copyright year in `parsers.js` and `parsers.d.ts` to 2026
+- Added `onAuthenticated`/`onRejected` to JSDoc `@typedef` for `ClientCertificateAuthOptions`
+- Added ESM-only note for `/helpers` and `/parsers` subpath exports in README
+
 ## [1.1.0] - 2026-02-05
 
 ### Added
