@@ -1,4 +1,4 @@
-FROM node:22-alpine
+FROM node:24.13.0-alpine
 WORKDIR /app
 
 # Copy the entire package (we're testing our own middleware)

@@ -8,7 +8,7 @@ services:
 
   # nginx with strict client cert verification (ssl_verify_client on)
   nginx-strict:
-    image: nginx:alpine
+    image: nginx:1.28.2-alpine
     ports:
       - "8443:443"
     volumes:
@@ -21,7 +21,7 @@ services:
 
   # nginx with optional client cert verification (ssl_verify_client optional_no_ca)
   nginx-optional:
-    image: nginx:alpine
+    image: nginx:1.28.2-alpine
     ports:
       - "8444:443"
     volumes:
@@ -34,7 +34,7 @@ services:
 
   # Envoy proxy with XFCC header
   envoy:
-    image: envoyproxy/envoy:v1.28-latest
+    image: envoyproxy/envoy:v1.37.0
     ports:
       - "8445:443"
     volumes:
@@ -48,7 +48,7 @@ services:
 
   # Traefik proxy with PassTLSClientCert middleware
   traefik:
-    image: traefik:v3.0
+    image: traefik:v3.6.7
     ports:
       - "8446:443"
     volumes:
