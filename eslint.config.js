@@ -17,7 +17,12 @@ export default [
             'eqeqeq': ['error', 'always'],
             'curly': ['error', 'all'],
             'semi': ['error', 'always'],
-            'quotes': ['error', 'single', { avoidEscape: true }]
+            'quotes': ['error', 'single', { avoidEscape: true }],
+            'no-eval': 'error',
+            'no-implied-eval': 'error',
+            'no-new-func': 'error',
+            'no-var': 'error',
+            'prefer-const': 'error'
         }
     },
     {
