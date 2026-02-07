@@ -22,6 +22,9 @@ npm run test:coverage
 # E2E proxy tests (requires Docker)
 npm run test:e2e
 
+# Mutation tests (Stryker)
+npm run test:mutation
+
 # All tests
 npm run test:all
 
@@ -31,7 +34,7 @@ npm run check
 
 ## Code Style
 
-- Run `npm run lint` before committing
+- Pre-commit hooks will automatically run linting and coverage checks
 - TypeScript strict mode is enabled
 - All public APIs should have JSDoc comments
 
