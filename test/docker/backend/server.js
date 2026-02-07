@@ -155,6 +155,7 @@ const server = http.createServer((req, res) => {
                 clientCN: req.clientCN,
                 proxyType: proxyType,
                 headerUsed: config.certificateHeader,
+                rawHeaderValue: req.headers[config.certificateHeader] || null,
             }));
         }
     });

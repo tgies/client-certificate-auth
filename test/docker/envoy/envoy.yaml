@@ -13,6 +13,7 @@ static_resources:
                 stat_prefix: ingress_http
                 forward_client_cert_details: SANITIZE_SET
                 set_current_client_cert_details:
+                  subject: true
                   cert: true
                 route_config:
                   name: local_route

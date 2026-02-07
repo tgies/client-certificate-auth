@@ -81,18 +81,28 @@ export async function generateMtlsCertificates(options = {}) {
 }
 
 /**
- * Generate a single self-signed client certificate (for simple unit tests).
- * 
+ * Generate a client certificate. Self-signed by default, or CA-signed if
+ * options.ca is provided. Additional subject attributes (O, OU, etc.) can
+ * be passed via options.attrs.
+ *
  * @param {string} commonName - Certificate common name
+ * @param {{ ca?: { cert: string, key: string }, attrs?: Array<{name?: string, shortName?: string, value: string}> }} [options]
  * @returns {Promise<{cert: string, key: string}>}
  */
-export async function generateClientCertificate(commonName = 'Test Client') {
+export async function generateClientCertificate(commonName = 'Test Client', options = {}) {
+    const { ca, attrs: extraAttrs } = options;
+    const subjectAttrs = [
+        { name: 'commonName', value: commonName },
+        ...(extraAttrs || []),
+    ];
+
     const result = await selfsigned.generate(
-        [{ name: 'commonName', value: commonName }],
+        subjectAttrs,
         {
             algorithm: 'sha256',
             keySize: 2048,
             days: 1,
+            ...(ca ? { ca: { key: ca.key, cert: ca.cert } } : {}),
             extensions: [
                 { name: 'basicConstraints', cA: false, critical: true },
                 { name: 'keyUsage', digitalSignature: true, critical: true },

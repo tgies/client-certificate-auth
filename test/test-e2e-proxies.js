@@ -343,6 +343,31 @@ describeIfDocker('Reverse Proxy Integration Tests', () => {
             expect(response.headerUsed).toBe('x-forwarded-client-cert');
         });
 
+        it('should parse XFCC with Subject field containing commas', async () => {
+            // CA-signed cert with O and OU so Envoy emits Subject="CN=...,OU=...,O=..."
+            const richClient = await generateClientCertificate('Test Client', {
+                ca: certs.ca,
+                attrs: [
+                    { name: 'organizationName', value: 'Test Org' },
+                    { shortName: 'OU', value: 'Engineering' },
+                ],
+            });
+
+            const response = await makeRequest(
+                `https://localhost:${ENVOY_PORT}/`,
+                richClient.cert,
+                richClient.key,
+                certs.ca.cert
+            );
+
+            expect(response.success).toBe(true);
+            expect(response.clientCN).toBe('Test Client');
+
+            // Verify Envoy emitted a Subject field with commas in the XFCC
+            const xfcc = response.rawHeaderValue;
+            expect(xfcc).toMatch(/Subject="[^"]*,[^"]*"/);
+        });
+
         it('should reject request without client certificate', async () => {
             // Envoy with require_client_certificate: true rejects at TLS level
             await expect(
