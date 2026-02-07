@@ -257,6 +257,17 @@ describe('clientCertificateAuth (CommonJS)', () => {
                     done();
                 });
             });
+
+            it('should handle request with no socket property', done => {
+                const reqNoSocket = { headers: {} };
+                const middleware = clientCertificateAuth(() => true);
+                middleware(reqNoSocket, mockRes, (err) => {
+                    assert.ok(err instanceof Error);
+                    assert.equal(err.status, 401);
+                    assert.ok(err.message.includes('unknown'));
+                    done();
+                });
+            });
         });
 
         describe('when certificate cannot be retrieved', () => {
@@ -269,11 +280,49 @@ describe('clientCertificateAuth (CommonJS)', () => {
                 middleware(reqEmptyCert, mockRes, (err) => {
                     assert.ok(err instanceof Error);
                     assert.equal(err.status, 500);
+                    assert.ok(err.message.includes('could not be retrieved'));
                     done();
                 });
             });
         });
 
+        describe('error message content', () => {
+            it('should include "unknown" when authorizationError is missing', done => {
+                const reqNoError = {
+                    secure: true,
+                    socket: {
+                        authorized: false,
+                        getPeerCertificate: getMockPeerCertificate
+                    },
+                    headers: {}
+                };
+                const middleware = clientCertificateAuth(() => true);
+                middleware(reqNoError, mockRes, (err) => {
+                    assert.ok(err instanceof Error);
+                    assert.ok(err.message.includes('unknown'), `Expected "unknown" in: ${err.message}`);
+                    done();
+                });
+            });
+
+            it('should include the actual authorizationError when present', done => {
+                const reqWithError = {
+                    secure: true,
+                    socket: {
+                        authorized: false,
+                        authorizationError: 'CERT_REVOKED',
+                        getPeerCertificate: getMockPeerCertificate
+                    },
+                    headers: {}
+                };
+                const middleware = clientCertificateAuth(() => true);
+                middleware(reqWithError, mockRes, (err) => {
+                    assert.ok(err instanceof Error);
+                    assert.ok(err.message.includes('CERT_REVOKED'), `Expected "CERT_REVOKED" in: ${err.message}`);
+                    assert.ok(!err.message.includes('unknown'), 'Should not contain "unknown"');
+                    done();
+                });
+            });
+        });
 
         describe('audit hooks (onAuthenticated/onRejected)', () => {
             it('should call onAuthenticated with cert and req on success', done => {

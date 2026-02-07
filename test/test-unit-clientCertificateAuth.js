@@ -243,6 +243,17 @@ describe('clientCertificateAuth', () => {
           done();
         });
       });
+
+      it('should handle request with no socket property', done => {
+        const reqNoSocket = { headers: {} };
+        const middleware = clientCertificateAuth(() => true);
+        middleware(reqNoSocket, mockRes, (err) => {
+          assert.ok(err instanceof Error);
+          assert.equal(err.status, 401);
+          assert.ok(err.message.includes('unknown'));
+          done();
+        });
+      });
     });
 
     describe('when certificate cannot be retrieved', () => {
@@ -255,6 +266,7 @@ describe('clientCertificateAuth', () => {
         middleware(reqEmptyCert, mockRes, (err) => {
           assert.ok(err instanceof Error);
           assert.equal(err.status, 500);
+          assert.ok(err.message.includes('could not be retrieved'));
           done();
         });
       });
