@@ -164,7 +164,7 @@ Returns Express middleware.
 
 | Name | Type | Description |
 |------|------|-------------|
-| `callback` | `(cert) => boolean \| Promise<boolean>` | Receives the client certificate, returns `true` to allow access |
+| `callback` | `(cert, req?) => boolean \| Promise<boolean>` | Receives the client certificate and request, returns `true` to allow access |
 | `options.certificateSource` | `string` | Use a preset for a known proxy: `'aws-alb'`, `'envoy'`, `'cloudflare'`, `'traefik'` |
 | `options.certificateHeader` | `string` | Custom header name to read certificate from |
 | `options.headerEncoding` | `string` | Encoding format: `'url-pem'`, `'url-pem-aws'`, `'xfcc'`, `'base64-der'`, `'rfc9440'` |

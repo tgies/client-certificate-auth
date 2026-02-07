@@ -332,6 +332,16 @@ describe('helpers', () => {
             const check = allOf(allowCN(['test-client']), asyncFalse);
             assert.equal(await check(mockCert), false);
         });
+
+        it('should forward req to sub-callbacks', async () => {
+            const mockReq = { url: '/test' };
+            const reqChecker = (cert, req) => {
+                assert.strictEqual(req, mockReq);
+                return cert.subject.CN === 'test-client';
+            };
+            const check = allOf(allowCN(['test-client']), reqChecker);
+            assert.equal(await check(mockCert, mockReq), true);
+        });
     });
 
     describe('anyOf', () => {
@@ -361,6 +371,16 @@ describe('helpers', () => {
             const asyncFalse = async () => false;
             const check = anyOf(allowCN(['test-client']), asyncFalse);
             assert.equal(await check(mockCert), true);
+        });
+
+        it('should forward req to sub-callbacks', async () => {
+            const mockReq = { url: '/test' };
+            const reqChecker = (cert, req) => {
+                assert.strictEqual(req, mockReq);
+                return cert.subject.CN === 'test-client';
+            };
+            const check = anyOf(allowCN(['other-client']), reqChecker);
+            assert.equal(await check(mockCert, mockReq), true);
         });
     });
 });
