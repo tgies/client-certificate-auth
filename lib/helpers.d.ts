@@ -9,7 +9,7 @@ import type { PeerCertificate } from 'tls';
 /**
  * Validation callback for clientCertificateAuth middleware.
  */
-export type ValidationCallback = (cert: PeerCertificate) => boolean | Promise<boolean>;
+export type ValidationCallback = (cert: PeerCertificate, req?: import('http').IncomingMessage) => boolean | Promise<boolean>;
 
 /**
  * Distinguished Name fields for matching.

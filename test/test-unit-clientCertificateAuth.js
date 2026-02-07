@@ -73,6 +73,16 @@ describe('clientCertificateAuth', () => {
         }
       );
 
+      it('should pass req as second argument to callback', done => {
+        const middleware = clientCertificateAuth((cert, req) => {
+          assert.equal(cert.subject.CN, 'Proctor Davenport');
+          assert.strictEqual(req, mockGoodReq);
+          done();
+          return true;
+        });
+        middleware(mockGoodReq, mockRes, () => { });
+      });
+
       it('should call next() if callback returns true (sync)', done => {
         const middleware = clientCertificateAuth(() => true);
         middleware(mockGoodReq, mockRes, (err) => {

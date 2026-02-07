@@ -42,7 +42,16 @@ function checkRequest(req: ClientCertRequest): void {
     }
 }
 
-// Test 7: CJS load() returns function with full ESM options
+// Test 7: callback with (cert, req) signature
+const _reqMiddleware = clientCertificateAuth((cert, req) => {
+    if (req) {
+        const _path: string | undefined = req.url;
+        void _path;
+    }
+    return cert.subject.CN === 'admin';
+});
+
+// Test 8: CJS load() returns function with full ESM options
 import type cjsAuth from '../lib/clientCertificateAuth.cjs';
 async function testCjsLoad() {
     const auth = await (null as unknown as typeof cjsAuth).load();
@@ -58,4 +67,5 @@ void _syncMiddleware;
 void _asyncMiddleware;
 void _withOptions;
 void checkRequest;
+void _reqMiddleware;
 void testCjsLoad;
