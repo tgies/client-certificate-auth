@@ -445,51 +445,52 @@ describe('clientCertificateAuth', () => {
           });
         });
 
-        it('should skip verify check when only verifyHeader is set (no verifyValue)', done => {
-          const encodedCert = encodeURIComponent(testPem);
-          const req = {
-            secure: false,
-            socket: { authorized: false },
-            headers: {
-              'x-ssl-client-cert': encodedCert,
-              'x-ssl-client-verify': 'ANYTHING'  // Would fail if checked
+        it('should throw at construction when only verifyHeader is set (no verifyValue)', () => {
+          assert.throws(
+            () => clientCertificateAuth(() => true, {
+              certificateHeader: 'X-SSL-Client-Cert',
+              headerEncoding: 'url-pem',
+              verifyHeader: 'X-SSL-Client-Verify'
+            }),
+            {
+              name: 'Error',
+              message: /verifyHeader and verifyValue must both be provided together/
             }
-          };
-
-          const middleware = clientCertificateAuth(() => true, {
-            certificateHeader: 'X-SSL-Client-Cert',
-            headerEncoding: 'url-pem',
-            verifyHeader: 'X-SSL-Client-Verify'
-            // NO verifyValue - should NOT check the header
-          });
-
-          middleware(req, mockRes, (err) => {
-            assert.equal(err, undefined);
-            done();
-          });
+          );
         });
 
-        it('should skip verify check when only verifyValue is set (no verifyHeader)', done => {
-          const encodedCert = encodeURIComponent(testPem);
-          const req = {
-            secure: false,
-            socket: { authorized: false },
-            headers: {
-              'x-ssl-client-cert': encodedCert
+        it('should throw at construction when only verifyValue is set (no verifyHeader)', () => {
+          assert.throws(
+            () => clientCertificateAuth(() => true, {
+              certificateHeader: 'X-SSL-Client-Cert',
+              headerEncoding: 'url-pem',
+              verifyValue: 'SUCCESS'
+            }),
+            {
+              name: 'Error',
+              message: /verifyHeader and verifyValue must both be provided together/
             }
-          };
+          );
+        });
 
-          const middleware = clientCertificateAuth(() => true, {
-            certificateHeader: 'X-SSL-Client-Cert',
-            headerEncoding: 'url-pem',
-            verifyValue: 'SUCCESS'
-            // NO verifyHeader
-          });
+        it('should not throw when both verifyHeader and verifyValue are set', () => {
+          assert.doesNotThrow(
+            () => clientCertificateAuth(() => true, {
+              certificateHeader: 'X-SSL-Client-Cert',
+              headerEncoding: 'url-pem',
+              verifyHeader: 'X-SSL-Client-Verify',
+              verifyValue: 'SUCCESS'
+            })
+          );
+        });
 
-          middleware(req, mockRes, (err) => {
-            assert.equal(err, undefined);
-            done();
-          });
+        it('should not throw when neither verifyHeader nor verifyValue is set', () => {
+          assert.doesNotThrow(
+            () => clientCertificateAuth(() => true, {
+              certificateHeader: 'X-SSL-Client-Cert',
+              headerEncoding: 'url-pem'
+            })
+          );
         });
       });
     });
