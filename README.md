@@ -600,10 +600,69 @@ app.use(clientCertificateAuth(checkAuth, {
 
 ## CommonJS
 
+The main entry point works with `require()` out of the box for socket-based mTLS:
+
 ```javascript
 const clientCertificateAuth = require('client-certificate-auth');
 
 app.use(clientCertificateAuth((cert) => cert.subject.CN === 'admin'));
+```
+
+The sync CJS wrapper supports `includeChain`, `onAuthenticated`, and `onRejected` options:
+
+```javascript
+const clientCertificateAuth = require('client-certificate-auth');
+
+app.use(clientCertificateAuth(
+  (cert) => cert.subject.CN === 'admin',
+  {
+    includeChain: true,
+    onAuthenticated: (cert, req) => {
+      console.log(`Authenticated: ${cert.subject.CN}`);
+    }
+  }
+));
+```
+
+### Full Features via `load()`
+
+Reverse proxy support (header-based certificate extraction) requires async initialization. Use the `load()` function to get the full-featured ESM module:
+
+```javascript
+const { load } = require('client-certificate-auth');
+
+async function setup() {
+  const clientCertificateAuth = await load();
+
+  app.use(clientCertificateAuth(checkAuth, {
+    certificateSource: 'aws-alb'  // Now supported
+  }));
+}
+
+setup();
+```
+
+The `load()` function dynamically imports the ESM module and caches it. Subsequent calls return the cached module immediately.
+
+### CJS Limitations
+
+| Feature | `require()` (sync) | `load()` (async) |
+|---------|---------------------|-------------------|
+| Socket-based mTLS | Yes | Yes |
+| `includeChain` | Yes | Yes |
+| `onAuthenticated` / `onRejected` | Yes | Yes |
+| `certificateSource` presets | No | Yes |
+| `certificateHeader` / `headerEncoding` | No | Yes |
+| `verifyHeader` / `verifyValue` | No | Yes |
+| `fallbackToSocket` | No | Yes |
+
+The `/helpers` and `/parsers` subpath exports are ESM-only and cannot be loaded via `require()`. If you need helpers in a CJS project, use dynamic `import()`:
+
+```javascript
+async function setup() {
+  const { allowCN, allOf, allowIssuer } = await import('client-certificate-auth/helpers');
+  // ...
+}
 ```
 
 ## Testing
@@ -624,6 +683,104 @@ The E2E tests spin up real reverse proxies, generate fresh certificates, and ver
 - Set `rejectUnauthorized: false` on your HTTPS server to let this middleware provide helpful error messages, rather than dropping connections silently
 - **When using header-based auth**, ensure your proxy strips certificate headers from external requests
 - Use `verifyHeader`/`verifyValue` as defense-in-depth when using header-based authentication
+
+## Troubleshooting
+
+### `DEPTH_ZERO_SELF_SIGNED_CERT` error
+
+This error occurs when the TLS layer rejects a self-signed client certificate. Set `rejectUnauthorized: false` in your HTTPS server options to let the middleware handle authorization instead of dropping the connection:
+
+```javascript
+const opts = {
+  key: fs.readFileSync('server.key'),
+  cert: fs.readFileSync('server.pem'),
+  ca: fs.readFileSync('ca.pem'),
+  requestCert: true,
+  rejectUnauthorized: false  // Required for self-signed certs
+};
+
+https.createServer(opts, app).listen(443);
+```
+
+> **Warning:** In production, prefer certificates signed by your own CA rather than self-signed certificates. If you must use self-signed certs, ensure you set `ca` to the self-signed certificate so Node.js can verify the chain.
+
+### Certificate not reaching middleware
+
+If the middleware always rejects with "socket not authorized", verify that your HTTPS server has `requestCert: true` set. Without this option, Node.js will not ask clients for a certificate during the TLS handshake:
+
+```javascript
+const opts = {
+  // ...
+  requestCert: true,           // Must be true
+  rejectUnauthorized: false
+};
+```
+
+Also confirm that the client is actually sending a certificate. Tools like `openssl s_client` can verify this:
+
+```bash
+openssl s_client -connect localhost:443 -cert client.pem -key client.key
+```
+
+### Reverse proxy headers not working
+
+When using header-based certificate extraction behind a reverse proxy:
+
+1. **Verify the proxy is setting the correct header.** Check your proxy logs or use a test endpoint to inspect incoming headers.
+
+2. **Ensure the `certificateSource` or `certificateHeader`/`headerEncoding` options match your proxy's configuration.** A mismatch will result in unparseable or missing certificate data.
+
+3. **Confirm the proxy strips certificate headers from external requests.** If external clients can set these headers directly, they can bypass authentication. See [Security Considerations](#security-considerations).
+
+4. **Consider using `verifyHeader`/`verifyValue`** for defense-in-depth, so the middleware validates that the proxy actually verified the certificate.
+
+### WebSocket authentication failing
+
+For WebSocket connections using the `ws` library with `noServer: true`, you must handle the `upgrade` event yourself and run the middleware manually. The middleware needs a response-like object and a `next` callback:
+
+```javascript
+server.on('upgrade', (req, socket, head) => {
+  const middleware = clientCertificateAuth(checkAuth);
+  const res = { writeHead: () => {}, end: () => {}, redirect: () => {} };
+
+  middleware(req, res, (err) => {
+    if (err) {
+      socket.write(`HTTP/1.1 ${err.status} ${err.message}\r\n\r\n`);
+      socket.destroy();
+      return;
+    }
+    wss.handleUpgrade(req, socket, head, (ws) => {
+      wss.emit('connection', ws, req);
+    });
+  });
+});
+```
+
+See the full [WebSocket Support](#websocket-support) section for complete examples with `ws` and Socket.IO.
+
+### ESM vs CJS import differences
+
+This package is an ES module (`"type": "module"` in package.json) with a CJS compatibility wrapper.
+
+**ESM** (recommended):
+```javascript
+import clientCertificateAuth from 'client-certificate-auth';
+import { allowCN } from 'client-certificate-auth/helpers';
+```
+
+**CJS** (sync, socket-only):
+```javascript
+const clientCertificateAuth = require('client-certificate-auth');
+```
+
+**CJS** (async, full features):
+```javascript
+const clientCertificateAuth = await require('client-certificate-auth').load();
+```
+
+The sync CJS wrapper does not support reverse proxy options (`certificateSource`, `certificateHeader`, etc.). Passing these options will throw a descriptive error. Use `load()` to access the full ESM module from CJS code. See the [CommonJS](#commonjs) section for details.
+
+The `/helpers` and `/parsers` subpath exports are ESM-only. In CJS, use dynamic `import()` to access them.
 
 ## License
 
