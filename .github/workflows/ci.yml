@@ -107,3 +107,28 @@ jobs:
       - name: Validate TypeScript declarations (attw)
         run: npx @arethetypeswrong/cli --pack . --ignore-rules=missing-export-equals --exclude-entrypoints "./parsers" "./helpers"
 
+  commit-lint:
+    name: Commit Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate current commit (last commit)
+        if: github.event_name == 'push'
+        run: npx commitlint --last --verbose
+
+      - name: Validate PR commits
+        if: github.event_name == 'pull_request'
+        run: npx commitlint --from ${{ github.event.pull_request.base.sha }} --to ${{ github.event.pull_request.head.sha }} --verbose
+
