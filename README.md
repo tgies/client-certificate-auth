@@ -498,6 +498,8 @@ import clientCertificateAuth from 'client-certificate-auth';
 import { allowCN, allowFingerprints, allowIssuer, allOf, anyOf } from 'client-certificate-auth/helpers';
 ```
 
+> **Note:** The `/helpers` and `/parsers` subpath exports are ESM-only. They are not available via `require()`. Use the main CJS entry point with `require('client-certificate-auth').load()` for full features in CommonJS.
+
 ### Basic Helpers
 
 ```javascript
