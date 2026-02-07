@@ -42,9 +42,20 @@ function checkRequest(req: ClientCertRequest): void {
     }
 }
 
+// Test 7: CJS load() returns function with full ESM options
+import type cjsAuth from '../lib/clientCertificateAuth.cjs';
+async function testCjsLoad() {
+    const auth = await (null as unknown as typeof cjsAuth).load();
+    const _mw = auth((cert) => cert.subject.CN === 'admin', {
+        certificateSource: 'aws-alb',
+        fallbackToSocket: true,
+    });
+}
+
 // Suppress unused variable warnings - this file is for type-checking only
 void _statusCode;
 void _syncMiddleware;
 void _asyncMiddleware;
 void _withOptions;
 void checkRequest;
+void testCjsLoad;

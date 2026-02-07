@@ -1,5 +1,10 @@
 import type { IncomingMessage, ServerResponse } from 'http';
 import type { TLSSocket, PeerCertificate, DetailedPeerCertificate } from 'tls';
+import type {
+    ClientCertificateAuthOptions as EsmOptions,
+    ValidationCallback as EsmValidationCallback,
+    Middleware as EsmMiddleware,
+} from './clientCertificateAuth.js';
 
 /**
  * Augment the global Error interface for Express/Connect middleware conventions.
@@ -106,7 +111,9 @@ declare function clientCertificateAuth(
 
 declare namespace clientCertificateAuth {
     export { clientCertificateAuth as default };
-    export function load(): Promise<typeof clientCertificateAuth>;
+    export function load(): Promise<
+        (callback: EsmValidationCallback, options?: EsmOptions) => EsmMiddleware
+    >;
 }
 
 export = clientCertificateAuth;
