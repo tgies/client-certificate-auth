@@ -302,6 +302,17 @@ describe('parsers module', () => {
             assert.equal(cert.subject.CN, 'Test Parser Client');
         });
 
+        it('should handle escaped quotes inside quoted values', () => {
+            const encodedPem = encodeURIComponent(testPem);
+            // Escaped quote (\") inside a quoted Subject value, followed by a comma
+            // that should NOT be treated as an element separator
+            const xfcc = `Subject="CN=foo\\"bar,OU=team";Cert="${encodedPem}"`;
+            const cert = parseXfcc(xfcc);
+
+            assert.ok(cert, 'Should not break on escaped quotes inside quoted values');
+            assert.equal(cert.subject.CN, 'Test Parser Client');
+        });
+
         it('should handle quoted Subject with commas in multi-hop', async () => {
             const secondCert = await generateClientCertificate('Second Hop');
             const encodedFirst = encodeURIComponent(testPem);
