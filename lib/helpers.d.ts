@@ -38,7 +38,9 @@ export declare function allowCN(names: string[]): ValidationCallback;
 
 /**
  * Create a validation callback that allows certificates with matching fingerprints.
- * Supports both full format (e.g., "SHA256:AB:CD:...") and raw hex.
+ * Supports SHA-1 fingerprints (compared against cert.fingerprint) and SHA-256
+ * fingerprints with "SHA256:" prefix (compared against cert.fingerprint256).
+ * Fingerprints without a prefix are treated as SHA-1.
  * @param fingerprints - Allowed fingerprints
  */
 export declare function allowFingerprints(fingerprints: string[]): ValidationCallback;

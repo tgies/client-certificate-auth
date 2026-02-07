@@ -31,6 +31,7 @@ const mockCert = {
         CN: 'Test CA Root',
     },
     fingerprint: 'AB:CD:EF:01:23:45:67:89:AB:CD:EF:01:23:45:67:89:AB:CD:EF:01',
+    fingerprint256: 'AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99',
     serialNumber: '01:23:45:67:89:AB:CD:EF',
     subjectaltname: 'DNS:test.example.com, email:alt@example.com, URI:https://example.com',
 };
@@ -54,22 +55,18 @@ describe('helpers', () => {
     });
 
     describe('allowFingerprints', () => {
-        it('should match raw fingerprint', () => {
+        // SHA-1 (no prefix) tests — compared against cert.fingerprint
+        it('should match SHA-1 fingerprint (no prefix)', () => {
             const check = allowFingerprints(['AB:CD:EF:01:23:45:67:89:AB:CD:EF:01:23:45:67:89:AB:CD:EF:01']);
             assert.equal(check(mockCert), true);
         });
 
-        it('should match fingerprint with SHA256 prefix', () => {
-            const check = allowFingerprints(['SHA256:AB:CD:EF:01:23:45:67:89:AB:CD:EF:01:23:45:67:89:AB:CD:EF:01']);
-            assert.equal(check(mockCert), true);
-        });
-
-        it('should be case-insensitive', () => {
+        it('should be case-insensitive for SHA-1 fingerprints', () => {
             const check = allowFingerprints(['ab:cd:ef:01:23:45:67:89:ab:cd:ef:01:23:45:67:89:ab:cd:ef:01']);
             assert.equal(check(mockCert), true);
         });
 
-        it('should return false when fingerprint does not match', () => {
+        it('should return false when SHA-1 fingerprint does not match', () => {
             const check = allowFingerprints(['00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00']);
             assert.equal(check(mockCert), false);
         });
@@ -79,21 +76,93 @@ describe('helpers', () => {
             assert.equal(check({}), false);
         });
 
-        it('should match when cert has lowercase fingerprint and allowed has uppercase', () => {
+        it('should match when cert has lowercase SHA-1 fingerprint and allowed has uppercase', () => {
             const certLowerFp = { fingerprint: 'ab:cd:ef:01:23:45:67:89:ab:cd:ef:01:23:45:67:89:ab:cd:ef:01' };
             const check = allowFingerprints(['AB:CD:EF:01:23:45:67:89:AB:CD:EF:01:23:45:67:89:AB:CD:EF:01']);
             assert.equal(check(certLowerFp), true);
         });
 
-        it('should match when both have mixed case', () => {
+        it('should match when both SHA-1 fingerprints have mixed case', () => {
             const certMixedFp = { fingerprint: 'Ab:Cd:Ef:01:23:45:67:89:aB:cD:eF:01:23:45:67:89:AB:cd:EF:01' };
             const check = allowFingerprints(['ab:cd:ef:01:23:45:67:89:AB:CD:EF:01:23:45:67:89:ab:cd:ef:01']);
             assert.equal(check(certMixedFp), true);
         });
 
-        it('should correctly remove SHA256: prefix regardless of case', () => {
-            const check = allowFingerprints(['sha256:AB:CD:EF:01:23:45:67:89:AB:CD:EF:01:23:45:67:89:AB:CD:EF:01']);
+        // SHA-256 (with SHA256: prefix) tests — compared against cert.fingerprint256
+        it('should match SHA-256 fingerprint with SHA256: prefix against cert.fingerprint256', () => {
+            const check = allowFingerprints([
+                'SHA256:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99',
+            ]);
             assert.equal(check(mockCert), true);
+        });
+
+        it('should match SHA-256 fingerprint case-insensitively', () => {
+            const check = allowFingerprints([
+                'sha256:aa:bb:cc:dd:ee:ff:00:11:22:33:44:55:66:77:88:99:aa:bb:cc:dd:ee:ff:00:11:22:33:44:55:66:77:88:99',
+            ]);
+            assert.equal(check(mockCert), true);
+        });
+
+        it('should not match SHA-256 fingerprint against cert.fingerprint (SHA-1)', () => {
+            // SHA256: prefix but the value is the SHA-1 fingerprint — should NOT match
+            const check = allowFingerprints([
+                'SHA256:AB:CD:EF:01:23:45:67:89:AB:CD:EF:01:23:45:67:89:AB:CD:EF:01',
+            ]);
+            assert.equal(check(mockCert), false);
+        });
+
+        it('should return false for SHA-256 fingerprint when cert has no fingerprint256', () => {
+            const certNoFp256 = { fingerprint: 'AB:CD:EF:01:23:45:67:89:AB:CD:EF:01:23:45:67:89:AB:CD:EF:01' };
+            const check = allowFingerprints([
+                'SHA256:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99',
+            ]);
+            assert.equal(check(certNoFp256), false);
+        });
+
+        // Mixed SHA-1 and SHA-256 tests
+        it('should support mixed SHA-1 and SHA-256 fingerprints', () => {
+            const check = allowFingerprints([
+                'AB:CD:EF:01:23:45:67:89:AB:CD:EF:01:23:45:67:89:AB:CD:EF:01',
+                'SHA256:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99',
+            ]);
+            // Both should match
+            assert.equal(check(mockCert), true);
+        });
+
+        it('should match SHA-1 from mixed list even when SHA-256 does not match', () => {
+            const check = allowFingerprints([
+                'AB:CD:EF:01:23:45:67:89:AB:CD:EF:01:23:45:67:89:AB:CD:EF:01',
+                'SHA256:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00',
+            ]);
+            assert.equal(check(mockCert), true);
+        });
+
+        it('should match SHA-256 from mixed list even when SHA-1 does not match', () => {
+            const check = allowFingerprints([
+                '00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00',
+                'SHA256:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99',
+            ]);
+            assert.equal(check(mockCert), true);
+        });
+
+        it('should handle cert with only fingerprint256 and SHA256: prefixed allowed', () => {
+            const certOnlyFp256 = {
+                fingerprint256: 'AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99',
+            };
+            const check = allowFingerprints([
+                'SHA256:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99',
+            ]);
+            assert.equal(check(certOnlyFp256), true);
+        });
+
+        it('should return false when only SHA-1 allowed but cert only has fingerprint256', () => {
+            const certOnlyFp256 = {
+                fingerprint256: 'AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99',
+            };
+            const check = allowFingerprints([
+                'AB:CD:EF:01:23:45:67:89:AB:CD:EF:01:23:45:67:89:AB:CD:EF:01',
+            ]);
+            assert.equal(check(certOnlyFp256), false);
         });
     });
 
@@ -326,6 +395,24 @@ describe('helpers', () => {
             const cert = { subjectaltname: 'URI:x:me@test.com' };
             assert.equal(allowEmail(['me@test.com'])(cert), false);
         });
+
+        it('should match subject.emailAddress when SAN has no email entries', () => {
+            const certSubjectEmailOnly = {
+                subject: { emailAddress: 'admin@example.com' },
+                subjectaltname: 'DNS:example.com, URI:https://example.com',
+            };
+            const check = allowEmail(['admin@example.com']);
+            assert.equal(check(certSubjectEmailOnly), true);
+        });
+
+        it('should return false when subject.emailAddress present but not in allowed list and SAN has no email', () => {
+            const certSubjectEmailOnly = {
+                subject: { emailAddress: 'admin@example.com' },
+                subjectaltname: 'DNS:example.com',
+            };
+            const check = allowEmail(['other@example.com']);
+            assert.equal(check(certSubjectEmailOnly), false);
+        });
     });
 
     describe('allOf', () => {
@@ -366,6 +453,11 @@ describe('helpers', () => {
             const check = allOf(allowCN(['test-client']), reqChecker);
             assert.equal(await check(mockCert, mockReq), true);
         });
+
+        it('should return true with zero callbacks (vacuous truth)', async () => {
+            const check = allOf();
+            assert.equal(await check(mockCert), true);
+        });
     });
 
     describe('anyOf', () => {
@@ -405,6 +497,11 @@ describe('helpers', () => {
             };
             const check = anyOf(allowCN(['other-client']), reqChecker);
             assert.equal(await check(mockCert, mockReq), true);
+        });
+
+        it('should return false with zero callbacks (no match possible)', async () => {
+            const check = anyOf();
+            assert.equal(await check(mockCert), false);
         });
     });
 });
