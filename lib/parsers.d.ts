@@ -1,6 +1,6 @@
 /*!
  * client-certificate-auth/parsers - TypeScript declarations
- * Copyright (C) 2013-2024 Tony Gies
+ * Copyright (C) 2013-2026 Tony Gies
  * @license MIT
  */
 
