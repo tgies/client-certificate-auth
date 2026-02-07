@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.2] - 2026-02-07
+
+### Fixed
+
+- **`allowFingerprints` SHA-256 support** — fingerprints with `SHA256:` prefix are now correctly compared against `cert.fingerprint256` instead of `cert.fingerprint` (SHA-1), fixing silent match failures when using SHA-256 fingerprints
+- **TypeScript type definitions** — `ClientCertResponse` aligned to `ServerResponse` (removed vestigial `redirect()`), `ValidationCallback` signature corrected in helpers declarations
+
+### Changed
+
+- Added troubleshooting section and expanded CommonJS documentation in README
+- Added `npm audit --audit-level=moderate` security gate to publish workflow
+- Pinned GitHub Actions to SHA hashes for supply chain security
+- Pinned Docker test infrastructure images to specific versions with healthchecks
+- Added Dependabot configuration for npm and GitHub Actions
+- Added security-focused ESLint rules (`no-eval`, `no-implied-eval`, `no-new-func`)
+- Added Stryker mutation score thresholds
+- Added GitHub issue and pull request templates
+- Optimized npm package metadata for discoverability
+
 ## [1.1.1] - 2026-02-07
 
 ### Fixed
@@ -106,6 +125,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix handling of empty certificates
 - Unit testing with mocks
 
+[1.1.2]: https://github.com/tgies/client-certificate-auth/compare/v1.1.1...v1.1.2
 [1.1.1]: https://github.com/tgies/client-certificate-auth/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/tgies/client-certificate-auth/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/tgies/client-certificate-auth/compare/0.3.0...v1.0.0
