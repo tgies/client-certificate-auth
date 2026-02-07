@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Partial `verifyHeader`/`verifyValue` throws** — providing only one of the pair now throws at construction instead of silently skipping the verification check
-- **Multi-element Envoy XFCC headers** — `parseXfcc()` now splits on comma first to extract the first proxy hop's certificate, fixing incorrect parsing in multi-hop Envoy deployments
+- **Multi-element Envoy XFCC headers** — `parseXfcc()` now uses quote-aware comma splitting to extract the first proxy hop's certificate, fixing incorrect parsing in multi-hop Envoy deployments and headers with quoted `Subject` fields containing commas
 - **CJS `load()` return type** — the TypeScript declaration for `require('client-certificate-auth').load()` now correctly reflects the full ESM options (e.g., `certificateSource`, `fallbackToSocket`)
 - **`req` passed to authorization callback** — the callback now receives `(cert, req)` as documented, enabling per-request authorization logic
 
