@@ -93,8 +93,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed automatic HTTPS redirect to prevent MITM exposure on initial HTTP request
 - Added `verifyHeader`/`verifyValue` options to validate proxy certificate verification status
 
-## [0.3.0] - 2013-04-30
+## [0.3.0] - 2014-03-17
+
+### Added
+- Support for asynchronous authorization callback
+
+## [0.2.1] - 2013-05-04
 
 - Initial stable release
 - Support for Node.js 0.6, 0.8, 0.10
 - Synchronous and callback-based authorization
+- Fix handling of empty certificates
+- Unit testing with mocks
+
+[1.1.1]: https://github.com/tgies/client-certificate-auth/compare/v1.1.0...v1.1.1
+[1.1.0]: https://github.com/tgies/client-certificate-auth/compare/v1.0.0...v1.1.0
+[1.0.0]: https://github.com/tgies/client-certificate-auth/compare/0.3.0...v1.0.0
+[0.3.0]: https://github.com/tgies/client-certificate-auth/compare/0.2.1...0.3.0
+[0.2.1]: https://github.com/tgies/client-certificate-auth/releases/tag/0.2.1
