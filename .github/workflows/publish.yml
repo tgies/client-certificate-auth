@@ -33,6 +33,9 @@ jobs:
       - name: Validate package exports
         run: npx publint
 
+      - name: Security audit
+        run: npm audit --audit-level=moderate
+
       - name: Publish to npm
         run: npm publish --provenance --access public
 
