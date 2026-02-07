@@ -256,6 +256,11 @@ describe('helpers', () => {
             assert.equal(check({}), false);
         });
 
+        it('should handle SAN entries separated by multiple spaces', () => {
+            const cert = { subjectaltname: 'DNS:first.example.com,  email:user@test.com' };
+            assert.equal(allowSAN(['email:user@test.com'])(cert), true);
+        });
+
         it('should handle SAN entries without colon prefix', () => {
             // Edge case: malformed SAN entry without type prefix
             const certMalformedSAN = { subjectaltname: 'nocolon, DNS:valid.com' };
@@ -301,6 +306,17 @@ describe('helpers', () => {
             const certOnlySAN = { subjectaltname: 'email:only@example.com' };
             const check = allowEmail(['only@example.com']);
             assert.equal(check(certOnlySAN), true);
+        });
+
+        it('should handle SAN entries separated by multiple spaces', () => {
+            const cert = { subjectaltname: 'email:user@test.com,  DNS:example.com' };
+            assert.equal(allowEmail(['user@test.com'])(cert), true);
+        });
+
+        it('should not match non-email SAN type even if value at offset 6 matches', () => {
+            // With startsWith mutation (→ true), "URI:x:me@test.com".slice(6) would be "me@test.com" → false positive
+            const cert = { subjectaltname: 'URI:x:me@test.com' };
+            assert.equal(allowEmail(['me@test.com'])(cert), false);
         });
     });
 
