@@ -268,6 +268,29 @@ describe('parsers module', () => {
             const cert = parseXfcc(xfcc);
             assert.ok(cert);
         });
+
+        it('should parse first element from multi-hop XFCC header', async () => {
+            const secondCert = await generateClientCertificate('Second Hop Client');
+            const firstEncoded = encodeAsEnvoy(testPem, 'first');
+            const secondEncoded = encodeAsEnvoy(secondCert.cert, 'second');
+            const multiHop = `${firstEncoded},${secondEncoded}`;
+            const cert = parseXfcc(multiHop);
+
+            assert.ok(cert);
+            assert.equal(cert.subject.CN, 'Test Parser Client');
+        });
+
+        it('should return first element cert when multi-hop has different CNs', async () => {
+            const secondCert = await generateClientCertificate('Different CN');
+            const firstEncoded = encodeAsEnvoy(testPem, 'abc');
+            const secondEncoded = encodeAsEnvoy(secondCert.cert, 'def');
+            const multiHop = `${firstEncoded},${secondEncoded}`;
+            const cert = parseXfcc(multiHop);
+
+            assert.ok(cert);
+            assert.equal(cert.subject.CN, 'Test Parser Client',
+                'Should return the first hop cert, not the second');
+        });
     });
 
     describe('parseBase64Der (Cloudflare format)', () => {
