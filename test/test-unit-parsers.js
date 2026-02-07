@@ -291,6 +291,28 @@ describe('parsers module', () => {
             assert.equal(cert.subject.CN, 'Test Parser Client',
                 'Should return the first hop cert, not the second');
         });
+
+        it('should handle quoted Subject fields containing commas', () => {
+            const encodedPem = encodeURIComponent(testPem);
+            // Subject with commas (typical DN) placed before Cert
+            const xfcc = `Subject="CN=client,OU=team,O=company";Cert="${encodedPem}"`;
+            const cert = parseXfcc(xfcc);
+
+            assert.ok(cert, 'Should not be broken by commas inside quoted Subject');
+            assert.equal(cert.subject.CN, 'Test Parser Client');
+        });
+
+        it('should handle quoted Subject with commas in multi-hop', async () => {
+            const secondCert = await generateClientCertificate('Second Hop');
+            const encodedFirst = encodeURIComponent(testPem);
+            const encodedSecond = encodeURIComponent(secondCert.cert);
+            // First element has Subject with commas, second element follows
+            const xfcc = `Subject="CN=client,OU=team";Cert="${encodedFirst}",Subject="CN=proxy";Cert="${encodedSecond}"`;
+            const cert = parseXfcc(xfcc);
+
+            assert.ok(cert, 'Should parse first element despite commas in quoted Subject');
+            assert.equal(cert.subject.CN, 'Test Parser Client');
+        });
     });
 
     describe('parseBase64Der (Cloudflare format)', () => {
