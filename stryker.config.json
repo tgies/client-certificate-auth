@@ -27,6 +27,11 @@
     "test/test-e2e-*.js"
   ],
   "coverageAnalysis": "perTest",
+  "thresholds": {
+    "high": 90,
+    "low": 85,
+    "break": 80
+  },
   "htmlReporter": {
     "fileName": "reports/mutation/mutation.html"
   }
