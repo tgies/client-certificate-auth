@@ -61,6 +61,36 @@ async function testCjsLoad() {
     });
 }
 
+// Negative type tests
+// These use @ts-expect-error to verify that invalid code is rejected.
+
+// Test 9: clientCertificateAuth() requires a callback argument
+// @ts-expect-error - no arguments
+const _noArgs = clientCertificateAuth();
+
+// Test 10: callback must be a function, not a string
+// @ts-expect-error - string is not a ValidationCallback
+const _stringArg = clientCertificateAuth('not a function');
+
+// Test 11: certificateSource must be a valid preset, not arbitrary string
+const _badSource = clientCertificateAuth(() => true, {
+    // @ts-expect-error - 'invalid-source' is not a valid CertificateSource
+    certificateSource: 'invalid-source',
+});
+
+// Test 12: fallbackToSocket must be boolean, not string
+const _badFallback = clientCertificateAuth(() => true, {
+    // @ts-expect-error - 'yes' is not assignable to boolean
+    fallbackToSocket: 'yes',
+});
+
+// Test 13: ClientCertRequest does not have arbitrary properties
+function checkInvalidProperty(req: ClientCertRequest): void {
+    // @ts-expect-error - nonExistentProperty does not exist on ClientCertRequest
+    const _bad = req.nonExistentProperty;
+    void _bad;
+}
+
 // Suppress unused variable warnings - this file is for type-checking only
 void _statusCode;
 void _syncMiddleware;
@@ -69,3 +99,8 @@ void _withOptions;
 void checkRequest;
 void _reqMiddleware;
 void testCjsLoad;
+void _noArgs;
+void _stringArg;
+void _badSource;
+void _badFallback;
+void checkInvalidProperty;
