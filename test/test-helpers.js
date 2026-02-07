@@ -26,7 +26,7 @@ export async function generateMtlsCertificates(options = {}) {
         {
             algorithm: 'sha256',
             keySize: 2048,
-            days: 1,
+            notBeforeDate: new Date(Date.now() - 60_000),
             extensions: [
                 { name: 'basicConstraints', cA: true, critical: true },
                 { name: 'keyUsage', keyCertSign: true, cRLSign: true, critical: true },
@@ -40,7 +40,7 @@ export async function generateMtlsCertificates(options = {}) {
         {
             algorithm: 'sha256',
             keySize: 2048,
-            days: 1,
+            notBeforeDate: new Date(Date.now() - 60_000),
             ca: { key: ca.private, cert: ca.cert },
             extensions: [
                 { name: 'basicConstraints', cA: false, critical: true },
@@ -63,7 +63,7 @@ export async function generateMtlsCertificates(options = {}) {
         {
             algorithm: 'sha256',
             keySize: 2048,
-            days: 1,
+            notBeforeDate: new Date(Date.now() - 60_000),
             ca: { key: ca.private, cert: ca.cert },
             extensions: [
                 { name: 'basicConstraints', cA: false, critical: true },
@@ -101,7 +101,7 @@ export async function generateClientCertificate(commonName = 'Test Client', opti
         {
             algorithm: 'sha256',
             keySize: 2048,
-            days: 1,
+            notBeforeDate: new Date(Date.now() - 60_000),
             ...(ca ? { ca: { key: ca.key, cert: ca.cert } } : {}),
             extensions: [
                 { name: 'basicConstraints', cA: false, critical: true },
