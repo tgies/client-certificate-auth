@@ -45,11 +45,9 @@ export interface ClientCertRequest extends IncomingMessage {
 }
 
 /**
- * Extended response object with redirect method.
+ * Response object for client certificate auth middleware.
  */
-export interface ClientCertResponse extends ServerResponse {
-    redirect(statusOrUrl: number | string, url?: string): void;
-}
+export type ClientCertResponse = ServerResponse;
 
 /**
  * Options for the synchronous CommonJS wrapper.

@@ -4,12 +4,13 @@
  * @license MIT
  */
 
-import type { PeerCertificate } from 'tls';
+import type { PeerCertificate, DetailedPeerCertificate } from 'tls';
+import type { ClientCertRequest } from './clientCertificateAuth.js';
 
 /**
  * Validation callback for clientCertificateAuth middleware.
  */
-export type ValidationCallback = (cert: PeerCertificate, req?: import('http').IncomingMessage) => boolean | Promise<boolean>;
+export type ValidationCallback = (cert: PeerCertificate | DetailedPeerCertificate, req?: ClientCertRequest) => boolean | Promise<boolean>;
 
 /**
  * Distinguished Name fields for matching.
