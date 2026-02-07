@@ -113,6 +113,30 @@ describe('clientCertificateAuth', () => {
         }
       );
 
+      it('should call next() if callback returns a truthy non-boolean value (string)', done => {
+        const middleware = clientCertificateAuth(() => 'yes');
+        middleware(mockGoodReq, mockRes, (err) => {
+          assert.equal(err, undefined);
+          done();
+        });
+      });
+
+      it('should call next() if callback returns a truthy non-boolean value (number)', done => {
+        const middleware = clientCertificateAuth(() => 1);
+        middleware(mockGoodReq, mockRes, (err) => {
+          assert.equal(err, undefined);
+          done();
+        });
+      });
+
+      it('should call next() if async callback resolves with a truthy non-boolean value', done => {
+        const middleware = clientCertificateAuth(async () => 'authorized');
+        middleware(mockGoodReq, mockRes, (err) => {
+          assert.equal(err, undefined);
+          done();
+        });
+      });
+
       it(
         'should pass 401 error to next() if callback returns false',
         done => {
@@ -257,13 +281,27 @@ describe('clientCertificateAuth', () => {
     });
 
     describe('when certificate cannot be retrieved', () => {
-      it('should pass 500 error to next()', done => {
+      it('should pass 500 error to next() when getPeerCertificate returns empty object', done => {
         const reqEmptyCert = {
           ...mockGoodReq,
           socket: { authorized: true, getPeerCertificate: () => ({}) }
         };
         const middleware = clientCertificateAuth(() => true);
         middleware(reqEmptyCert, mockRes, (err) => {
+          assert.ok(err instanceof Error);
+          assert.equal(err.status, 500);
+          assert.ok(err.message.includes('could not be retrieved'));
+          done();
+        });
+      });
+
+      it('should pass 500 error to next() when getPeerCertificate returns null', done => {
+        const reqNullCert = {
+          ...mockGoodReq,
+          socket: { authorized: true, getPeerCertificate: () => null }
+        };
+        const middleware = clientCertificateAuth(() => true);
+        middleware(reqNullCert, mockRes, (err) => {
           assert.ok(err instanceof Error);
           assert.equal(err.status, 500);
           assert.ok(err.message.includes('could not be retrieved'));
