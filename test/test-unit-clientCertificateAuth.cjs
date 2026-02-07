@@ -324,6 +324,60 @@ describe('clientCertificateAuth (CommonJS)', () => {
             });
         });
 
+        describe('req.clientCertificate', () => {
+            it('should attach certificate to request on successful auth', done => {
+                const req = { ...mockGoodReq };
+                const middleware = clientCertificateAuth(() => true);
+
+                middleware(req, mockRes, () => {
+                    assert.ok(req.clientCertificate, 'clientCertificate should be set');
+                    assert.equal(req.clientCertificate.subject.CN, 'Proctor Davenport');
+                    assert.equal(req.clientCertificate.fingerprint, 'BA:DA:DD:EA:DB:EE:FC:CC:CC:CC:07:15:19:88:C0:FF:EE:00:12:00');
+                    done();
+                });
+            });
+
+            it('should attach certificate even when callback returns false', done => {
+                const req = { ...mockGoodReq };
+                const middleware = clientCertificateAuth(() => false);
+
+                middleware(req, mockRes, (err) => {
+                    assert.ok(err instanceof Error);
+                    assert.equal(err.status, 401);
+                    // Certificate should still be attached for error logging purposes
+                    assert.ok(req.clientCertificate, 'clientCertificate should be set even on auth failure');
+                    assert.equal(req.clientCertificate.subject.CN, 'Proctor Davenport');
+                    done();
+                });
+            });
+
+            it('should attach certificate even when async callback returns false', done => {
+                const req = { ...mockGoodReq };
+                const middleware = clientCertificateAuth(async () => false);
+
+                middleware(req, mockRes, (err) => {
+                    assert.ok(err instanceof Error);
+                    assert.equal(err.status, 401);
+                    assert.ok(req.clientCertificate, 'clientCertificate should be set even on async auth failure');
+                    done();
+                });
+            });
+
+            it('should attach certificate when callback throws', done => {
+                const req = { ...mockGoodReq };
+                const middleware = clientCertificateAuth(() => {
+                    throw new Error('Auth error');
+                });
+
+                middleware(req, mockRes, (err) => {
+                    assert.ok(err instanceof Error);
+                    assert.equal(err.message, 'Auth error');
+                    assert.ok(req.clientCertificate, 'clientCertificate should be set even on throw');
+                    done();
+                });
+            });
+        });
+
         describe('audit hooks (onAuthenticated/onRejected)', () => {
             it('should call onAuthenticated with cert and req on success', done => {
                 let hookArgs = null;
