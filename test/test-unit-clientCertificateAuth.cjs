@@ -277,114 +277,119 @@ describe('clientCertificateAuth (CommonJS)', () => {
 
         describe('audit hooks (onAuthenticated/onRejected)', () => {
             it('should call onAuthenticated with cert and req on success', done => {
-                let hookCalled = false;
+                let hookArgs = null;
                 const middleware = clientCertificateAuth(() => true, {
-                    onAuthenticated: (cert, req) => {
-                        hookCalled = true;
-                        assert.equal(cert.subject.CN, 'Proctor Davenport');
-                        assert.ok(req);
-                    }
+                    onAuthenticated: (cert, req) => { hookArgs = { cert, req }; }
                 });
 
                 middleware(mockGoodReq, mockRes, () => {
                     setImmediate(() => {
-                        assert.ok(hookCalled, 'onAuthenticated should have been called');
+                        assert.ok(hookArgs, 'onAuthenticated should have been called');
+                        assert.equal(hookArgs.cert.subject.CN, 'Proctor Davenport');
+                        assert.ok(hookArgs.req);
                         done();
                     });
                 });
             });
 
             it('should call onRejected with cert, req, and reason when callback returns false', done => {
-                let hookCalled = false;
+                let hookArgs = null;
                 const middleware = clientCertificateAuth(() => false, {
-                    onRejected: (cert, req, reason) => {
-                        hookCalled = true;
-                        assert.equal(cert.subject.CN, 'Proctor Davenport');
-                        assert.ok(req);
-                        assert.equal(reason, 'callback_returned_false');
-                    }
+                    onRejected: (cert, req, reason) => { hookArgs = { cert, req, reason }; }
                 });
 
                 middleware(mockGoodReq, mockRes, () => {
                     setImmediate(() => {
-                        assert.ok(hookCalled, 'onRejected should have been called');
+                        assert.ok(hookArgs, 'onRejected should have been called');
+                        assert.equal(hookArgs.cert.subject.CN, 'Proctor Davenport');
+                        assert.ok(hookArgs.req);
+                        assert.equal(hookArgs.reason, 'callback_returned_false');
                         done();
                     });
                 });
             });
 
             it('should call onRejected with null cert when socket is not authorized', done => {
-                let hookCalled = false;
+                let hookArgs = null;
                 const middleware = clientCertificateAuth(() => true, {
-                    onRejected: (cert, req, reason) => {
-                        hookCalled = true;
-                        assert.equal(cert, null);
-                        assert.equal(reason, 'socket_not_authorized');
-                    }
+                    onRejected: (cert, req, reason) => { hookArgs = { cert, req, reason }; }
                 });
 
                 middleware(mockUnauthReq, mockRes, () => {
                     setImmediate(() => {
-                        assert.ok(hookCalled, 'onRejected should have been called');
+                        assert.ok(hookArgs, 'onRejected should have been called');
+                        assert.equal(hookArgs.cert, null);
+                        assert.equal(hookArgs.reason, 'socket_not_authorized');
                         done();
                     });
                 });
             });
 
             it('should call onRejected with error message when callback throws', done => {
-                let hookCalled = false;
+                let hookArgs = null;
                 const middleware = clientCertificateAuth(() => {
                     throw new Error('Custom error message');
                 }, {
-                    onRejected: (cert, req, reason) => {
-                        hookCalled = true;
-                        assert.equal(reason, 'Custom error message');
-                    }
+                    onRejected: (cert, req, reason) => { hookArgs = { cert, req, reason }; }
                 });
 
                 middleware(mockGoodReq, mockRes, () => {
                     setImmediate(() => {
-                        assert.ok(hookCalled, 'onRejected should have been called');
+                        assert.ok(hookArgs, 'onRejected should have been called');
+                        assert.equal(hookArgs.reason, 'Custom error message');
+                        done();
+                    });
+                });
+            });
+
+            it('should call onRejected with error message when async callback rejects', done => {
+                let hookArgs = null;
+                const middleware = clientCertificateAuth(async () => {
+                    throw new Error('Async rejection');
+                }, {
+                    onRejected: (cert, req, reason) => { hookArgs = { cert, req, reason }; }
+                });
+
+                middleware(mockGoodReq, mockRes, () => {
+                    setImmediate(() => {
+                        assert.ok(hookArgs, 'onRejected should have been called');
+                        assert.equal(hookArgs.reason, 'Async rejection');
                         done();
                     });
                 });
             });
 
             it('should use fallback reason when sync error has no message', done => {
-                let hookCalled = false;
+                let hookArgs = null;
                 const middleware = clientCertificateAuth(() => {
-                     
+
                     throw { status: 500 };  // Object without message property
                 }, {
-                    onRejected: (cert, req, reason) => {
-                        hookCalled = true;
-                        assert.equal(reason, 'callback_threw');
-                    }
+                    onRejected: (cert, req, reason) => { hookArgs = { cert, req, reason }; }
                 });
 
                 middleware(mockGoodReq, mockRes, () => {
                     setImmediate(() => {
-                        assert.ok(hookCalled, 'onRejected should have been called');
+                        assert.ok(hookArgs, 'onRejected should have been called');
+                        assert.equal(hookArgs.reason, 'callback_threw');
                         done();
                     });
                 });
             });
 
             it('should use fallback reason when async error has no message', done => {
-                let hookCalled = false;
+                let hookArgs = null;
                 const middleware = clientCertificateAuth(async () => {
-                     
+
                     throw { status: 500 };  // Object without message property
                 }, {
-                    onRejected: (cert, req, reason) => {
-                        hookCalled = true;
-                        assert.equal(reason, 'callback_threw');
-                    }
+                    onRejected: (cert, req, reason) => { hookArgs = { cert, req, reason }; }
                 });
 
                 middleware(mockGoodReq, mockRes, () => {
                     setImmediate(() => {
-                        assert.ok(hookCalled, 'onRejected should have been called');
+                        assert.ok(hookArgs, 'onRejected should have been called');
+                        assert.equal(hookArgs.reason, 'callback_threw');
                         done();
                     });
                 });
@@ -460,23 +465,21 @@ describe('clientCertificateAuth (CommonJS)', () => {
             });
 
             it('should call onRejected when cert cannot be retrieved', done => {
-                let hookCalled = false;
+                let hookArgs = null;
                 const reqEmptyCert = {
                     ...mockGoodReq,
                     socket: { authorized: true, getPeerCertificate: () => ({}) }
                 };
 
                 const middleware = clientCertificateAuth(() => true, {
-                    onRejected: (cert, _req, reason) => {
-                        hookCalled = true;
-                        assert.equal(cert, null);
-                        assert.equal(reason, 'certificate_not_retrievable');
-                    }
+                    onRejected: (cert, _req, reason) => { hookArgs = { cert, reason }; }
                 });
 
                 middleware(reqEmptyCert, mockRes, () => {
                     setImmediate(() => {
-                        assert.ok(hookCalled, 'onRejected should have been called');
+                        assert.ok(hookArgs, 'onRejected should have been called');
+                        assert.equal(hookArgs.cert, null);
+                        assert.equal(hookArgs.reason, 'certificate_not_retrievable');
                         done();
                     });
                 });
