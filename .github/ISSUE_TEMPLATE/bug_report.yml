@@ -42,10 +42,10 @@ body:
       description: How does your application receive client certificates?
       options:
         - Direct TLS socket (no reverse proxy)
-        - AWS ALB (`certificateSource: 'aws-alb'`)
-        - Envoy / Istio (`certificateSource: 'envoy'`)
-        - Cloudflare (`certificateSource: 'cloudflare'`)
-        - Traefik (`certificateSource: 'traefik'`)
+        - "AWS ALB (`certificateSource: 'aws-alb'`)"
+        - "Envoy / Istio (`certificateSource: 'envoy'`)"
+        - "Cloudflare (`certificateSource: 'cloudflare'`)"
+        - "Traefik (`certificateSource: 'traefik'`)"
         - nginx (custom header)
         - HAProxy (custom header)
         - Google Cloud Load Balancer (custom header)
