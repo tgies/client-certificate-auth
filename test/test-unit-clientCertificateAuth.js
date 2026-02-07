@@ -33,6 +33,17 @@ describe('clientCertificateAuth', () => {
     }
   );
 
+  it('should throw TypeError if callback is not a function', () => {
+    assert.throws(() => clientCertificateAuth('not a function'), {
+      name: 'TypeError',
+      message: /callback must be a function/
+    });
+    assert.throws(() => clientCertificateAuth(null), {
+      name: 'TypeError',
+      message: /callback must be a function/
+    });
+  });
+
   it(
     'should return a middleware function taking three arguments',
     () => {
