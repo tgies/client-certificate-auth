@@ -186,6 +186,112 @@ The `cert` parameter contains fields from [`tls.PeerCertificate`](https://nodejs
 - `valid_from`, `valid_to` - Validity period
 - `issuerCertificate` - Issuer's certificate (only when `includeChain: true`)
 
+### `extractClientCertificate(req, options?)`
+
+Framework-agnostic certificate extraction function exported from `client-certificate-auth/extractor`. Use this when building adapters for non-Express frameworks or when you need certificate extraction without middleware.
+
+**Parameters:**
+
+| Name | Type | Description |
+|------|------|-------------|
+| `req` | `Object` | Request object with `headers` and optional `socket` |
+| `req.headers` | `Record<string, string \| string[]>` | HTTP headers object |
+| `req.socket` | `Object` | Optional TLS socket (for socket-based extraction) |
+| `options` | `Object` | Same options as middleware (except `onAuthenticated`/`onRejected`) |
+
+**Returns:** `ExtractionResult`
+
+```typescript
+{
+  success: boolean;
+  certificate: PeerCertificate | null;
+  reason: string | null;  // Rejection reason if success is false
+}
+```
+
+**Rejection reasons:**
+
+- `'verification_header_mismatch'` - Proxy verify header didn't match expected value
+- `'header_missing_or_malformed'` - Header extraction failed and no fallback configured
+- `'socket_not_authorized'` - Socket not authorized for TLS client cert
+- `'certificate_not_retrievable'` - Socket authorized but getPeerCertificate() returned empty
+
+**Example - Building a Koa adapter:**
+
+```javascript
+import { extractClientCertificate } from 'client-certificate-auth/extractor';
+
+function koaClientCert(checkAuth, options = {}) {
+  return async (ctx, next) => {
+    const result = extractClientCertificate(ctx.req, options);
+
+    if (!result.success) {
+      ctx.throw(401, result.reason);
+    }
+
+    ctx.state.clientCertificate = result.certificate;
+
+    const allowed = await checkAuth(result.certificate, ctx.req);
+    if (!allowed) {
+      ctx.throw(401, 'Certificate not authorized');
+    }
+
+    await next();
+  };
+}
+
+// Usage
+app.use(koaClientCert(
+  (cert) => cert.subject.CN === 'admin',
+  { certificateSource: 'aws-alb' }
+));
+```
+
+**Example - Custom authentication flow:**
+
+```javascript
+import { extractClientCertificate } from 'client-certificate-auth/extractor';
+
+app.post('/api/login', (req, res) => {
+  // Extract certificate without middleware
+  const result = extractClientCertificate(req, {
+    certificateSource: 'envoy',
+    fallbackToSocket: true
+  });
+
+  if (!result.success) {
+    return res.status(401).json({ error: result.reason });
+  }
+
+  // Custom auth logic
+  const user = lookupUserByCertFingerprint(result.certificate.fingerprint);
+  if (!user) {
+    return res.status(403).json({ error: 'Certificate not registered' });
+  }
+
+  // Issue session token
+  const token = createSessionToken(user);
+  res.json({ token, user });
+});
+```
+
+### Ecosystem
+
+This package provides everything you need to build mTLS authentication for any Node.js framework:
+
+- **Certificate extraction** via `extractClientCertificate()` - handles both socket and header-based extraction
+- **Authorization helpers** - reusable validation callbacks for common patterns (`allowCN`, `allowFingerprints`, etc.)
+- **Parser library** - decode certificates from various reverse proxy formats (Envoy XFCC, AWS ALB, Cloudflare, etc.)
+- **Type definitions** - full TypeScript support
+
+**Official framework adapters:**
+
+- **[passport-client-certificate-auth](https://www.npmjs.com/package/passport-client-certificate-auth)** - Passport.js strategy for mTLS authentication
+
+**Community adapters:**
+
+If you build an adapter for another framework (Koa, Fastify, Hapi, NestJS, etc.), please open an issue or PR to get it listed here!
+
 ### Accessing the Certificate
 
 After authentication, the certificate is attached to `req.clientCertificate` for downstream handlers:

@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-02-09
+
+### Added
+
+- **Certificate extractor module** — `extractClientCertificate()` function exported from `client-certificate-auth/extractor` provides framework-agnostic certificate extraction
+  - Returns structured `{ success, certificate, reason }` result object instead of using middleware pattern
+  - Supports all certificate sources: socket-based and header-based (AWS ALB, Envoy, Cloudflare, Traefik, custom)
+  - Same configuration options as middleware (`certificateSource`, `fallbackToSocket`, `includeChain`, `verifyHeader`, etc.)
+  - Enables building adapters for non-Express frameworks (Koa, Fastify, Hapi, etc.)
+  - Useful for custom authentication flows that need certificate extraction without middleware overhead
+
+### Tests
+
+- Added comprehensive unit tests for `extractClientCertificate()` covering all extraction modes and error paths
+
 ## [1.1.3] - 2026-02-09
 
 ### Fixed
@@ -137,6 +152,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix handling of empty certificates
 - Unit testing with mocks
 
+[1.2.0]: https://github.com/tgies/client-certificate-auth/compare/v1.1.3...v1.2.0
+[1.1.3]: https://github.com/tgies/client-certificate-auth/compare/v1.1.2...v1.1.3
 [1.1.2]: https://github.com/tgies/client-certificate-auth/compare/v1.1.1...v1.1.2
 [1.1.1]: https://github.com/tgies/client-certificate-auth/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/tgies/client-certificate-auth/compare/v1.0.0...v1.1.0
