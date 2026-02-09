@@ -379,6 +379,13 @@ describe('clientCertificateAuth (CommonJS)', () => {
         });
 
         describe('audit hooks (onAuthenticated/onRejected)', () => {
+            // Guard against console.error staying monkey-patched if an assertion
+            // fails before manual restoration inside a test callback.
+            const savedConsoleError = console.error;
+            afterEach(() => {
+                console.error = savedConsoleError;
+            });
+
             it('should call onAuthenticated with cert and req on success', done => {
                 let hookArgs = null;
                 const middleware = clientCertificateAuth(() => true, {
@@ -517,7 +524,6 @@ describe('clientCertificateAuth (CommonJS)', () => {
             });
 
             it('should catch and log sync hook errors without affecting request', done => {
-                const originalError = console.error;
                 let errorLogged = false;
                 console.error = (...args) => {
                     if (args[0]?.includes?.('hook error')) {
@@ -533,9 +539,7 @@ describe('clientCertificateAuth (CommonJS)', () => {
 
                 middleware(mockGoodReq, mockRes, (err) => {
                     assert.equal(err, undefined, 'Request should succeed despite hook error');
-                    // Hook runs in microtask, so defer assertion
                     setImmediate(() => {
-                        console.error = originalError;
                         assert.ok(errorLogged, 'Error should have been logged');
                         done();
                     });
@@ -543,18 +547,16 @@ describe('clientCertificateAuth (CommonJS)', () => {
             });
 
             it('should not produce console.error when no hooks are configured', done => {
-                const originalError = console.error;
                 let errorCalled = false;
                 console.error = (...args) => {
                     errorCalled = true;
-                    originalError.apply(console, args);
+                    savedConsoleError.apply(console, args);
                 };
 
                 const middleware = clientCertificateAuth(() => true);
                 middleware(mockGoodReq, mockRes, (err) => {
                     assert.equal(err, undefined);
                     setImmediate(() => {
-                        console.error = originalError;
                         assert.equal(errorCalled, false, 'console.error should not be called without hooks');
                         done();
                     });
@@ -562,11 +564,10 @@ describe('clientCertificateAuth (CommonJS)', () => {
             });
 
             it('should not produce console.error for a successful sync hook', done => {
-                const originalError = console.error;
                 let errorCalled = false;
                 console.error = (...args) => {
                     errorCalled = true;
-                    originalError.apply(console, args);
+                    savedConsoleError.apply(console, args);
                 };
 
                 const middleware = clientCertificateAuth(() => true, {
@@ -575,7 +576,6 @@ describe('clientCertificateAuth (CommonJS)', () => {
                 middleware(mockGoodReq, mockRes, (err) => {
                     assert.equal(err, undefined);
                     setImmediate(() => {
-                        console.error = originalError;
                         assert.equal(errorCalled, false, 'console.error should not be called for successful sync hooks');
                         done();
                     });
@@ -583,7 +583,6 @@ describe('clientCertificateAuth (CommonJS)', () => {
             });
 
             it('should catch and log async hook errors without affecting request', done => {
-                const originalError = console.error;
                 let errorLogged = false;
                 console.error = (...args) => {
                     if (args[0]?.includes?.('hook error')) {
@@ -600,7 +599,6 @@ describe('clientCertificateAuth (CommonJS)', () => {
                 middleware(mockGoodReq, mockRes, (err) => {
                     assert.equal(err, undefined, 'Request should succeed despite hook error');
                     setTimeout(() => {
-                        console.error = originalError;
                         assert.ok(errorLogged, 'Error should have been logged');
                         done();
                     }, 10);
@@ -808,6 +806,32 @@ describe('clientCertificateAuth (CommonJS)', () => {
                     } else {
                         resolve();
                     }
+                });
+            });
+        });
+
+        it('should support onAuthenticated hook via load()', async () => {
+            const loadedFn = await clientCertificateAuth.load();
+            let hookArgs = null;
+
+            const req = {
+                secure: true,
+                socket: { authorized: true, getPeerCertificate: getMockPeerCertificate },
+                headers: {}
+            };
+
+            const middleware = loadedFn(() => true, {
+                onAuthenticated: (cert, _req) => { hookArgs = { cert, req: _req }; }
+            });
+
+            await new Promise(resolve => {
+                middleware(req, { redirect: () => {} }, () => {
+                    setImmediate(() => {
+                        assert.ok(hookArgs, 'onAuthenticated should have been called via load()');
+                        assert.equal(hookArgs.cert.subject.CN, 'Proctor Davenport');
+                        assert.ok(hookArgs.req);
+                        resolve();
+                    });
                 });
             });
         });

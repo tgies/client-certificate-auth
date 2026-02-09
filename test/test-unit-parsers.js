@@ -600,6 +600,19 @@ describe('parsers module', () => {
             assert.equal(cert, null);
         });
 
+        it('should allow headerEncoding to override preset encoding', () => {
+            // aws-alb preset uses url-pem-aws encoding, but we override to url-pem
+            const encoded = encodeAsNginx(testPem);
+            const headers = { 'x-amzn-mtls-clientcert': encoded };
+
+            const cert = getCertificateFromHeaders(headers, {
+                certificateSource: 'aws-alb',
+                headerEncoding: 'url-pem',
+            });
+            assert.ok(cert);
+            assert.equal(cert.subject.CN, 'Test Parser Client');
+        });
+
         it('should return null for empty string header value', () => {
             const headers = { 'x-amzn-mtls-clientcert': '' };
             const cert = getCertificateFromHeaders(headers, { certificateSource: 'aws-alb' });
