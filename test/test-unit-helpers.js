@@ -52,6 +52,11 @@ describe('helpers', () => {
             const check = allowCN(['test']);
             assert.equal(check({}), false);
         });
+
+        it('should return false with empty allowlist', () => {
+            const check = allowCN([]);
+            assert.equal(check(mockCert), false);
+        });
     });
 
     describe('allowFingerprints', () => {
@@ -74,6 +79,11 @@ describe('helpers', () => {
         it('should handle missing fingerprint gracefully', () => {
             const check = allowFingerprints(['AB:CD']);
             assert.equal(check({}), false);
+        });
+
+        it('should return false with empty allowlist', () => {
+            const check = allowFingerprints([]);
+            assert.equal(check(mockCert), false);
         });
 
         it('should match when cert has lowercase SHA-1 fingerprint and allowed has uppercase', () => {
@@ -225,6 +235,11 @@ describe('helpers', () => {
             const check = allowOU(['Engineering']);
             assert.equal(check({}), false);
         });
+
+        it('should return false with empty allowlist', () => {
+            const check = allowOU([]);
+            assert.equal(check(mockCert), false);
+        });
     });
 
     describe('allowOrganization', () => {
@@ -241,6 +256,11 @@ describe('helpers', () => {
         it('should handle missing subject gracefully', () => {
             const check = allowOrganization(['Test']);
             assert.equal(check({}), false);
+        });
+
+        it('should return false with empty allowlist', () => {
+            const check = allowOrganization([]);
+            assert.equal(check(mockCert), false);
         });
     });
 
@@ -268,6 +288,11 @@ describe('helpers', () => {
         it('should handle missing serialNumber gracefully', () => {
             const check = allowSerial(['0123']);
             assert.equal(check({}), false);
+        });
+
+        it('should return false with empty allowlist', () => {
+            const check = allowSerial([]);
+            assert.equal(check(mockCert), false);
         });
 
         it('should match when cert serial has colons and allowed has none', () => {
@@ -325,6 +350,21 @@ describe('helpers', () => {
             assert.equal(check({}), false);
         });
 
+        it('should return false with empty allowlist', () => {
+            const check = allowSAN([]);
+            assert.equal(check(mockCert), false);
+        });
+
+        it('should match IP Address SAN by value only', () => {
+            const cert = { subjectaltname: 'IP Address:10.0.0.1, DNS:service.local' };
+            assert.equal(allowSAN(['10.0.0.1'])(cert), true);
+        });
+
+        it('should match IP Address SAN with full type prefix', () => {
+            const cert = { subjectaltname: 'IP Address:10.0.0.1' };
+            assert.equal(allowSAN(['IP Address:10.0.0.1'])(cert), true);
+        });
+
         it('should handle SAN entries separated by multiple spaces', () => {
             const cert = { subjectaltname: 'DNS:first.example.com,  email:user@test.com' };
             assert.equal(allowSAN(['email:user@test.com'])(cert), true);
@@ -377,6 +417,11 @@ describe('helpers', () => {
         it('should handle missing email fields gracefully', () => {
             const check = allowEmail(['test@example.com']);
             assert.equal(check({}), false);
+        });
+
+        it('should return false with empty allowlist', () => {
+            const check = allowEmail([]);
+            assert.equal(check(mockCert), false);
         });
 
         it('should handle cert with only SAN email', () => {
@@ -458,6 +503,11 @@ describe('helpers', () => {
             const check = allOf();
             assert.equal(await check(mockCert), true);
         });
+
+        it('should return false when callback returns truthy non-boolean value', async () => {
+            const check = allOf(() => 'yes');
+            assert.equal(await check(mockCert), false);
+        });
     });
 
     describe('anyOf', () => {
@@ -501,6 +551,11 @@ describe('helpers', () => {
 
         it('should return false with zero callbacks (no match possible)', async () => {
             const check = anyOf();
+            assert.equal(await check(mockCert), false);
+        });
+
+        it('should return false when callback returns truthy non-boolean value', async () => {
+            const check = anyOf(() => 'yes');
             assert.equal(await check(mockCert), false);
         });
     });
