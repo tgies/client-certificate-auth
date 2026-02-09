@@ -440,6 +440,29 @@ describe('clientCertificateAuth', () => {
         });
       });
 
+      it('should return 401 when certificate header value is a string[] (duplicate headers)', done => {
+        const encodedCert = encodeURIComponent(testPem);
+
+        const req = {
+          secure: false,
+          socket: { authorized: false },
+          headers: {
+            'x-amzn-mtls-clientcert': [encodedCert, encodedCert]
+          }
+        };
+
+        const middleware = clientCertificateAuth(() => true, {
+          certificateSource: 'aws-alb'
+        });
+
+        middleware(req, mockRes, (err) => {
+          assert.ok(err instanceof Error);
+          assert.equal(err.status, 401);
+          assert.ok(err.message.includes('header missing or malformed'));
+          done();
+        });
+      });
+
       describe('verifyHeader/verifyValue options', () => {
         it('should reject if verifyHeader is set but header is missing', done => {
           const encodedCert = encodeURIComponent(testPem);
@@ -518,6 +541,32 @@ describe('clientCertificateAuth', () => {
 
           middleware(req, mockRes, (err) => {
             assert.equal(err, undefined);
+            done();
+          });
+        });
+
+        it('should reject when verify header value is a string[] (duplicate headers)', done => {
+          const encodedCert = encodeURIComponent(testPem);
+          const req = {
+            secure: false,
+            socket: { authorized: false },
+            headers: {
+              'x-ssl-client-cert': encodedCert,
+              'x-ssl-client-verify': ['SUCCESS', 'SUCCESS']
+            }
+          };
+
+          const middleware = clientCertificateAuth(() => true, {
+            certificateHeader: 'X-SSL-Client-Cert',
+            headerEncoding: 'url-pem',
+            verifyHeader: 'X-SSL-Client-Verify',
+            verifyValue: 'SUCCESS'
+          });
+
+          middleware(req, mockRes, (err) => {
+            assert.ok(err instanceof Error);
+            assert.equal(err.status, 401);
+            assert.ok(err.message.includes('Certificate verification failed'));
             done();
           });
         });
