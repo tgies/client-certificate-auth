@@ -380,6 +380,28 @@ describe('parsers module', () => {
             assert.equal(result.issuerCertificate.issuerCertificate, undefined,
                 'last cert in chain should not have issuerCertificate set by parser');
         });
+
+        it('should drop invalid certs and chain remaining valid certs', () => {
+            const validBase64 = encodeAsCloudflare(testDer);
+            const invalidBase64 = Buffer.from('invalid-cert-data').toString('base64');
+
+            const result = parseBase64Der(`${validBase64},${invalidBase64},${validBase64}`);
+            assert.ok(result);
+            assert.ok(result.issuerCertificate, 'two valid certs should be chained');
+            assert.equal(result.issuerCertificate.issuerCertificate, undefined,
+                'only two valid certs in chain, not three');
+        });
+
+        it('should return single valid cert when others in chain are invalid', () => {
+            const validBase64 = encodeAsCloudflare(testDer);
+            const invalidBase64 = Buffer.from('invalid-cert-data').toString('base64');
+
+            const result = parseBase64Der(`${invalidBase64},${validBase64},${invalidBase64}`);
+            assert.ok(result);
+            assert.equal(result.subject.CN, 'Test Parser Client');
+            assert.equal(result.issuerCertificate, undefined,
+                'single surviving cert should not have issuerCertificate');
+        });
     });
 
     describe('parseRfc9440 (GCP format)', () => {
