@@ -33,6 +33,12 @@
         "types": "./lib/helpers.d.ts",
         "default": "./lib/helpers.js"
       }
+    },
+    "./extractor": {
+      "import": {
+        "types": "./lib/extractor.d.ts",
+        "default": "./lib/extractor.js"
+      }
     }
   },
   "main": "./lib/clientCertificateAuth.cjs",
