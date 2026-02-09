@@ -1,5 +1,9 @@
 /** @type {import('jest').Config} */
 export default {
+    roots: [
+        '<rootDir>/test',
+        '<rootDir>/lib',
+    ],
     testMatch: [
         '**/test/test-unit-*.js',
         '**/test/test-unit-*.cjs',
