@@ -764,5 +764,52 @@ describe('clientCertificateAuth (CommonJS)', () => {
             const second = await clientCertificateAuth.load();
             assert.strictEqual(first, second);
         });
+
+        it('should create working middleware with header-based options via load()', async () => {
+            const selfsigned = require('selfsigned');
+            const testCert = await selfsigned.generate(
+                [{ name: 'commonName', value: 'Header Test Client' }],
+                {
+                    algorithm: 'sha256',
+                    keySize: 2048,
+                    days: 1,
+                    extensions: [
+                        { name: 'basicConstraints', cA: false, critical: true },
+                        { name: 'extKeyUsage', clientAuth: true },
+                    ],
+                }
+            );
+            const encodedCert = encodeURIComponent(testCert.cert)
+                .replace(/%2B/g, '+')
+                .replace(/%3D/g, '=')
+                .replace(/%2F/g, '/');
+
+            const req = {
+                secure: false,
+                socket: { authorized: false },
+                headers: {
+                    'x-amzn-mtls-clientcert': encodedCert
+                }
+            };
+
+            const mockRes = { redirect: () => { } };
+
+            const loadedFn = await clientCertificateAuth.load();
+            const middleware = loadedFn((cert) => {
+                assert.ok(cert);
+                assert.equal(cert.subject.CN, 'Header Test Client');
+                return true;
+            }, { certificateSource: 'aws-alb' });
+
+            await new Promise((resolve, reject) => {
+                middleware(req, mockRes, (err) => {
+                    if (err) {
+                        reject(err);
+                    } else {
+                        resolve();
+                    }
+                });
+            });
+        });
     });
 });
