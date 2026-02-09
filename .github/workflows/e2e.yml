@@ -34,7 +34,23 @@ jobs:
       
       - name: Run E2E proxy tests
         run: npm run test:e2e
-      
+
+      - name: Dump Docker logs on failure
+        if: failure()
+        run: |
+          echo "=== Container Status ===" > docker-logs.txt
+          docker compose -f test/docker/docker-compose.yml ps -a >> docker-logs.txt 2>&1
+          echo -e "\n=== Container Logs ===" >> docker-logs.txt
+          docker compose -f test/docker/docker-compose.yml logs --no-color >> docker-logs.txt 2>&1
+
+      - name: Upload Docker logs
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: e2e-docker-logs
+          path: docker-logs.txt
+          retention-days: 7
+
       - name: Cleanup Docker
         if: always()
         run: docker compose -f test/docker/docker-compose.yml down -v 2>/dev/null || true
