@@ -15,7 +15,7 @@
     "--experimental-vm-modules"
   ],
   "jest": {
-    "enableFindRelatedTests": false,
+    "enableFindRelatedTests": true,
     "configFile": "jest.config.js"
   },
   "mutate": [
