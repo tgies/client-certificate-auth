@@ -7,7 +7,7 @@ Express/Connect middleware for client SSL certificate authentication (mTLS).
 [![codecov](https://codecov.io/gh/tgies/client-certificate-auth/graph/badge.svg)](https://codecov.io/gh/tgies/client-certificate-auth)
 [![stryker mutation testing](https://img.shields.io/endpoint?style=flat&url=https%3A%2F%2Fbadge-api.stryker-mutator.io%2Fgithub.com%2Ftgies%2Fclient-certificate-auth%2Fmaster)](https://dashboard.stryker-mutator.io/reports/github.com/tgies/client-certificate-auth/master)
 
-100% line/branch/function/statement coverage, plus mutation testing and E2E tests against real nginx/Envoy/Traefik containers. ~3,500 lines of test code for ~600 lines of source (measured by [cloc](https://github.com/AlDanial/cloc)).
+100% line/branch/function/statement coverage, plus mutation testing and E2E tests against real nginx/Envoy/Traefik containers. ~3,950 lines of test code for ~590 lines of source (measured by [cloc](https://github.com/AlDanial/cloc)).
 
 ## Installation
 
