@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.3] - 2026-02-09
+
+### Fixed
+
+- **Duplicate header injection guard** — `getCertificateFromHeaders` now rejects `string[]` header values (caused by duplicate HTTP headers) instead of passing them to parsers, which would produce undefined behavior. The `verifyHeader` check also explicitly rejects array values, failing closed with a clear error message.
+
+### Tests
+
+- Added malformed header + `fallbackToSocket: true` test to verify fallback when the certificate header is present but unparseable
+- Added mixed valid/invalid chain tests for `parseBase64Der` to pin the "accept partial" semantic (invalid certs are silently dropped, valid certs are chained)
+- Added CJS `load()` full-feature contract test verifying header-based options work end-to-end through the async ESM bridge
+
 ## [1.1.2] - 2026-02-07
 
 ### Fixed
