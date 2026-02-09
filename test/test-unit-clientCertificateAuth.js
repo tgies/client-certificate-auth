@@ -391,6 +391,29 @@ describe('clientCertificateAuth', () => {
         });
       });
 
+      it('should fallback to socket if header is present but malformed and fallbackToSocket is true', done => {
+        const req = {
+          secure: true,
+          socket: { authorized: true, getPeerCertificate: getMockPeerCertificate },
+          headers: {
+            'x-amzn-mtls-clientcert': 'not-a-valid-cert!!!'
+          }
+        };
+
+        const middleware = clientCertificateAuth((cert) => {
+          assert.equal(cert.subject.CN, 'Proctor Davenport');
+          return true;
+        }, {
+          certificateSource: 'aws-alb',
+          fallbackToSocket: true
+        });
+
+        middleware(req, mockRes, (err) => {
+          assert.equal(err, undefined);
+          done();
+        });
+      });
+
       it('should use custom header with custom encoding', done => {
         const encodedCert = encodeURIComponent(testPem);
 
