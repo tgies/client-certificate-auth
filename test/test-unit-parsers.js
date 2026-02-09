@@ -605,6 +605,13 @@ describe('parsers module', () => {
             const cert = getCertificateFromHeaders(headers, { certificateSource: 'aws-alb' });
             assert.equal(cert, null);
         });
+
+        it('should return null when header value is a string[] (duplicate headers)', () => {
+            const encoded = encodeAsAwsAlb(testPem);
+            const headers = { 'x-amzn-mtls-clientcert': [encoded, encoded] };
+            const cert = getCertificateFromHeaders(headers, { certificateSource: 'aws-alb' });
+            assert.equal(cert, null);
+        });
     });
 
     describe('round-trip verification', () => {
