@@ -26,23 +26,42 @@
       "import": {
         "types": "./lib/parsers.d.ts",
         "default": "./lib/parsers.js"
+      },
+      "require": {
+        "types": "./lib/parsers.d.cts",
+        "default": "./lib/parsers.cjs"
       }
     },
     "./helpers": {
       "import": {
         "types": "./lib/helpers.d.ts",
         "default": "./lib/helpers.js"
+      },
+      "require": {
+        "types": "./lib/helpers.d.cts",
+        "default": "./lib/helpers.cjs"
       }
     },
     "./extractor": {
       "import": {
         "types": "./lib/extractor.d.ts",
         "default": "./lib/extractor.js"
+      },
+      "require": {
+        "types": "./lib/extractor.d.cts",
+        "default": "./lib/extractor.cjs"
       }
     }
   },
   "main": "./lib/clientCertificateAuth.cjs",
   "types": "./lib/clientCertificateAuth.d.ts",
+  "typesVersions": {
+    "*": {
+      "parsers": ["./lib/parsers.d.ts"],
+      "helpers": ["./lib/helpers.d.ts"],
+      "extractor": ["./lib/extractor.d.ts"]
+    }
+  },
   "engines": {
     "node": ">= 20"
   },

@@ -91,6 +91,38 @@ function checkInvalidProperty(req: ClientCertRequest): void {
     void _bad;
 }
 
+// Test 14: CJS helpers load() returns the helpers module
+import type cjsHelpers from '../lib/helpers.cjs';
+async function testCjsHelpersLoad() {
+    const helpers = await (null as unknown as typeof cjsHelpers).load();
+    const _validator = helpers.allowCN(['admin']);
+    const _combined = helpers.allOf(
+        helpers.allowCN(['admin']),
+        helpers.allowOU(['Engineering'])
+    );
+}
+
+// Test 15: CJS parsers load() returns the parsers module
+import type cjsParsers from '../lib/parsers.cjs';
+async function testCjsParsersLoad() {
+    const parsers = await (null as unknown as typeof cjsParsers).load();
+    const _cert = parsers.parseUrlPem('test');
+    const _presets = parsers.PRESETS;
+    const _headerCert = parsers.getCertificateFromHeaders({}, {
+        certificateSource: 'aws-alb',
+    });
+}
+
+// Test 16: CJS extractor load() returns the extractor module
+import type cjsExtractor from '../lib/extractor.cjs';
+async function testCjsExtractorLoad() {
+    const extractor = await (null as unknown as typeof cjsExtractor).load();
+    const _result = extractor.extractClientCertificate(
+        { headers: {} },
+        { certificateSource: 'aws-alb' }
+    );
+}
+
 // Suppress unused variable warnings - this file is for type-checking only
 void _statusCode;
 void _syncMiddleware;
@@ -104,3 +136,6 @@ void _stringArg;
 void _badSource;
 void _badFallback;
 void checkInvalidProperty;
+void testCjsHelpersLoad;
+void testCjsParsersLoad;
+void testCjsExtractorLoad;
