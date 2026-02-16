@@ -120,7 +120,7 @@ jobs:
         run: npx publint
       
       - name: Validate TypeScript declarations (attw)
-        run: npx @arethetypeswrong/cli --pack . --ignore-rules=missing-export-equals --exclude-entrypoints "./parsers" "./helpers" "./extractor"
+        run: npx @arethetypeswrong/cli --pack . --ignore-rules=missing-export-equals
 
   commit-lint:
     name: Commit Lint
