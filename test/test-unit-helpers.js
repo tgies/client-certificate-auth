@@ -36,6 +36,29 @@ const mockCert = {
     subjectaltname: 'DNS:test.example.com, email:alt@example.com, URI:https://example.com',
 };
 
+// Mock certificate with multi-valued DN fields (Node.js returns string[] for repeated attributes)
+const mockMultiValueCert = {
+    subject: {
+        C: 'US',
+        ST: 'California',
+        L: 'San Francisco',
+        O: ['Test Corp', 'Parent Corp'],
+        OU: ['Engineering', 'DevTeam'],
+        CN: 'test-client',
+        emailAddress: ['test@example.com', 'admin@example.com'],
+    },
+    issuer: {
+        C: 'US',
+        O: 'Test CA',
+        CN: 'Test CA Root',
+        OU: ['CA Operations', 'Security'],
+    },
+    fingerprint: 'AB:CD:EF:01:23:45:67:89:AB:CD:EF:01:23:45:67:89:AB:CD:EF:01',
+    fingerprint256: 'AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99',
+    serialNumber: '01:23:45:67:89:AB:CD:EF',
+    subjectaltname: 'DNS:test.example.com, email:alt@example.com',
+};
+
 describe('helpers', () => {
     describe('allowCN', () => {
         it('should return true when CN matches', () => {
@@ -53,9 +76,26 @@ describe('helpers', () => {
             assert.equal(check({}), false);
         });
 
+        it('should return false when subject exists but CN is undefined', () => {
+            const check = allowCN(['test']);
+            assert.equal(check({ subject: { O: 'Test Corp' } }), false);
+        });
+
         it('should return false with empty allowlist', () => {
             const check = allowCN([]);
             assert.equal(check(mockCert), false);
+        });
+
+        it('should match when CN is a multi-valued array', () => {
+            const cert = { subject: { CN: ['primary-client', 'alt-client'] } };
+            const check = allowCN(['alt-client']);
+            assert.equal(check(cert), true);
+        });
+
+        it('should return false when no CN in multi-valued array matches', () => {
+            const cert = { subject: { CN: ['primary-client', 'alt-client'] } };
+            const check = allowCN(['other-client']);
+            assert.equal(check(cert), false);
         });
     });
 
@@ -196,6 +236,26 @@ describe('helpers', () => {
             const check = allowIssuer({ O: 'Test CA' });
             assert.equal(check({}), false);
         });
+
+        it('should match when issuer field is a multi-valued array', () => {
+            const check = allowIssuer({ OU: 'Security' });
+            assert.equal(check(mockMultiValueCert), true);
+        });
+
+        it('should return false when no value in multi-valued issuer field matches', () => {
+            const check = allowIssuer({ OU: 'Finance' });
+            assert.equal(check(mockMultiValueCert), false);
+        });
+
+        it('should match mixed scalar and multi-valued issuer fields', () => {
+            const check = allowIssuer({ O: 'Test CA', OU: 'CA Operations' });
+            assert.equal(check(mockMultiValueCert), true);
+        });
+
+        it('should return false when issuer field value is null', () => {
+            const check = allowIssuer({ OU: 'Engineering' });
+            assert.equal(check({ issuer: { OU: null } }), false);
+        });
     });
 
     describe('allowSubject', () => {
@@ -217,6 +277,26 @@ describe('helpers', () => {
         it('should handle missing subject gracefully', () => {
             const check = allowSubject({ O: 'Test' });
             assert.equal(check({}), false);
+        });
+
+        it('should match when subject field is a multi-valued array', () => {
+            const check = allowSubject({ OU: 'DevTeam' });
+            assert.equal(check(mockMultiValueCert), true);
+        });
+
+        it('should return false when no value in multi-valued subject field matches', () => {
+            const check = allowSubject({ OU: 'Sales' });
+            assert.equal(check(mockMultiValueCert), false);
+        });
+
+        it('should return false when subject field value is null', () => {
+            const check = allowSubject({ OU: 'Engineering' });
+            assert.equal(check({ subject: { OU: null } }), false);
+        });
+
+        it('should match mixed scalar and multi-valued subject fields', () => {
+            const check = allowSubject({ CN: 'test-client', O: 'Parent Corp' });
+            assert.equal(check(mockMultiValueCert), true);
         });
     });
 
@@ -240,6 +320,16 @@ describe('helpers', () => {
             const check = allowOU([]);
             assert.equal(check(mockCert), false);
         });
+
+        it('should match when OU is a multi-valued array', () => {
+            const check = allowOU(['DevTeam', 'Operations']);
+            assert.equal(check(mockMultiValueCert), true);
+        });
+
+        it('should return false when no OU in multi-valued array matches', () => {
+            const check = allowOU(['Sales', 'Marketing']);
+            assert.equal(check(mockMultiValueCert), false);
+        });
     });
 
     describe('allowOrganization', () => {
@@ -261,6 +351,16 @@ describe('helpers', () => {
         it('should return false with empty allowlist', () => {
             const check = allowOrganization([]);
             assert.equal(check(mockCert), false);
+        });
+
+        it('should match when O is a multi-valued array', () => {
+            const check = allowOrganization(['Parent Corp', 'Other Corp']);
+            assert.equal(check(mockMultiValueCert), true);
+        });
+
+        it('should return false when no O in multi-valued array matches', () => {
+            const check = allowOrganization(['Unknown Corp']);
+            assert.equal(check(mockMultiValueCert), false);
         });
     });
 
@@ -457,6 +557,19 @@ describe('helpers', () => {
             };
             const check = allowEmail(['other@example.com']);
             assert.equal(check(certSubjectEmailOnly), false);
+        });
+
+        it('should match when subject.emailAddress is a multi-valued array', () => {
+            const check = allowEmail(['admin@example.com']);
+            assert.equal(check(mockMultiValueCert), true);
+        });
+
+        it('should return false when no email in multi-valued array matches', () => {
+            const cert = {
+                subject: { emailAddress: ['first@example.com', 'second@example.com'] },
+            };
+            const check = allowEmail(['other@example.com']);
+            assert.equal(check(cert), false);
         });
     });
 
