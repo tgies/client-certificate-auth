@@ -26,6 +26,11 @@ If you discover a security vulnerability in this package, please report it throu
 - Credit in the security advisory (unless you prefer to remain anonymous)
 - A CVE will be requested for confirmed vulnerabilities when appropriate
 
+## Maintainer
+
+- **GPG Fingerprint:** `31B0 0A90 B561 D52E 0CC6  3E36 F489 74F8 53E3 65D2`
+- **Public Key:** [github.com/tgies.gpg](https://github.com/tgies.gpg)
+
 ## Security Best Practices
 
 When using this middleware:
