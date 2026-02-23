@@ -604,7 +604,7 @@ import clientCertificateAuth from 'client-certificate-auth';
 import { allowCN, allowFingerprints, allowIssuer, allOf, anyOf } from 'client-certificate-auth/helpers';
 ```
 
-> **Note:** The `/helpers` and `/parsers` subpath exports are ESM-only. They are not available via `require()`. Use the main CJS entry point with `require('client-certificate-auth').load()` for full features in CommonJS.
+> **Note:** In CommonJS, the `/helpers`, `/parsers`, and `/extractor` subpath exports provide a `load()` function for async access. See the [CommonJS](#commonjs) section for details.
 
 ### Basic Helpers
 
@@ -762,13 +762,24 @@ The `load()` function dynamically imports the ESM module and caches it. Subseque
 | `verifyHeader` / `verifyValue` | No | Yes |
 | `fallbackToSocket` | No | Yes |
 
-The `/helpers` and `/parsers` subpath exports are ESM-only and cannot be loaded via `require()`. If you need helpers in a CJS project, use dynamic `import()`:
+### Subpath Exports in CJS
+
+The `/helpers`, `/parsers`, and `/extractor` subpath exports each provide a `load()` function for async access in CommonJS. The individual functions are not synchronously available via `require()`.
 
 ```javascript
-async function setup() {
-  const { allowCN, allOf, allowIssuer } = await import('client-certificate-auth/helpers');
-  // ...
-}
+// Helpers
+const { load } = require('client-certificate-auth/helpers');
+const { allowCN, allOf, allowIssuer } = await load();
+
+// Extractor
+const { load: loadExtractor } = require('client-certificate-auth/extractor');
+const { extractClientCertificate } = await loadExtractor();
+```
+
+Alternatively, you can use dynamic `import()`:
+
+```javascript
+const { allowCN } = await import('client-certificate-auth/helpers');
 ```
 
 ## Testing
@@ -886,7 +897,7 @@ const clientCertificateAuth = await require('client-certificate-auth').load();
 
 The sync CJS wrapper does not support reverse proxy options (`certificateSource`, `certificateHeader`, etc.). Passing these options will throw a descriptive error. Use `load()` to access the full ESM module from CJS code. See the [CommonJS](#commonjs) section for details.
 
-The `/helpers` and `/parsers` subpath exports are ESM-only. In CJS, use dynamic `import()` to access them.
+The `/helpers`, `/parsers`, and `/extractor` subpath exports each provide a `load()` function in CJS. See [Subpath Exports in CJS](#subpath-exports-in-cjs) for details.
 
 ## License
 
