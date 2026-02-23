@@ -4,7 +4,7 @@
  * Uses path-based routing to determine which header configuration to use:
  * - /nginx → X-SSL-Client-Cert (url-pem)
  * - /envoy → X-Forwarded-Client-Cert (xfcc)
- * - /traefik → X-Forwarded-Tls-Client-Cert (url-pem)
+ * - /traefik → X-Forwarded-Tls-Client-Cert (base64-der)
  * - /helpers/... → Tests using authorization helper functions
  */
 
