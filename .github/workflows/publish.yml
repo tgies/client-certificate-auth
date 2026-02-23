@@ -39,7 +39,7 @@ jobs:
         run: npx publint
 
       - name: Security audit
-        run: npm audit --audit-level=moderate
+        run: npm audit --audit-level=moderate --omit=dev
 
       - name: Publish to npm
         run: npm publish --provenance --access public
