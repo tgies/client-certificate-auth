@@ -284,6 +284,11 @@ describe('helpers', () => {
             const check = allowIssuer({ OU: 'Engineering' });
             assert.equal(check({ issuer: { OU: null } }), false);
         });
+
+        it('should return false with empty match object', () => {
+            const check = allowIssuer({});
+            assert.equal(check(mockCert), false);
+        });
     });
 
     describe('allowSubject', () => {
@@ -325,6 +330,11 @@ describe('helpers', () => {
         it('should match mixed scalar and multi-valued subject fields', () => {
             const check = allowSubject({ CN: 'test-client', O: 'Parent Corp' });
             assert.equal(check(mockMultiValueCert), true);
+        });
+
+        it('should return false with empty match object', () => {
+            const check = allowSubject({});
+            assert.equal(check(mockCert), false);
         });
     });
 
