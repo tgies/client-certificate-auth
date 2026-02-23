@@ -214,6 +214,34 @@ describe('helpers', () => {
             ]);
             assert.equal(check(certOnlyFp256), false);
         });
+
+        it('should not access fingerprint properties if allowlist is empty for that type', () => {
+            let sha1Accessed = false;
+            let sha256Accessed = false;
+            const cert = {
+                get fingerprint() { sha1Accessed = true; return 'AA'; },
+                get fingerprint256() { sha256Accessed = true; return 'BB'; },
+            };
+
+            // Empty allowlist
+            let check = allowFingerprints([]);
+            check(cert);
+            assert.equal(sha1Accessed, false);
+            assert.equal(sha256Accessed, false);
+
+            // Only SHA-1 allowlist
+            check = allowFingerprints(['AA']);
+            check(cert);
+            assert.equal(sha1Accessed, true);
+            assert.equal(sha256Accessed, false);
+
+            // Only SHA-256 allowlist
+            sha1Accessed = false;
+            check = allowFingerprints(['SHA256:BB']);
+            check(cert);
+            assert.equal(sha1Accessed, false);
+            assert.equal(sha256Accessed, true);
+        });
     });
 
     describe('allowIssuer', () => {
@@ -411,6 +439,15 @@ describe('helpers', () => {
             const certLower = { serialNumber: 'aabbccdd' };
             const check = allowSerial(['AABBCCDD']);
             assert.equal(check(certLower), true);
+        });
+
+        it('should strictly use toUpperCase for normalization', () => {
+            // 'ς' and 'σ' both uppercase to 'Σ', but lowercase to themselves.
+            // If the implementation incorrectly uses toLowerCase, this will fail.
+            // Mostly mutation defense
+            const certSigma = { serialNumber: 'σ' };
+            const check = allowSerial(['ς']);
+            assert.equal(check(certSigma), true);
         });
     });
 
