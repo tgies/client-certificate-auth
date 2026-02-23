@@ -413,7 +413,11 @@ app.use(clientCertificateAuth(checkAuth, {
 | `aws-alb` | `X-Amzn-Mtls-Clientcert` | URL-encoded PEM (AWS variant) |
 | `envoy` | `X-Forwarded-Client-Cert` | XFCC structured format |
 | `cloudflare` | `Cf-Client-Cert-Der-Base64` | Base64-encoded DER |
-| `traefik` | `X-Forwarded-Tls-Client-Cert` | Base64-encoded DER |
+| `traefik` | `X-Forwarded-Tls-Client-Cert` | Base64-encoded DER \* |
+
+> \* **Traefik note:** The `traefik` preset targets Traefik v3's `PassTLSClientCert` middleware with `pem: true`. Despite Traefik's docs describing this as "PEM format", the wire format is the base64 body without PEM headers — equivalent to base64-encoded DER. Behavior may differ in Traefik v2.
+
+> **Cloudflare note:** Cloudflare also provides certificates via the `CF-Client-Cert-PEM` header (URL-encoded PEM). If you use that header instead, configure manually with `certificateHeader: 'CF-Client-Cert-PEM'` and `headerEncoding: 'url-pem'`.
 
 ### Custom Headers
 
