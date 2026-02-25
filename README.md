@@ -1,6 +1,6 @@
 # client-certificate-auth
 
-Express/Connect middleware for client SSL certificate authentication (mTLS).
+Comprehensive toolkit for client SSL certificate authentication (mTLS) in Node.js. Includes Express/Connect middleware, framework-agnostic certificate extraction for reverse proxies (AWS ALB, Envoy, Cloudflare, Traefik), and pre-built authorization helpers.
 
 [![CI](https://github.com/tgies/client-certificate-auth/actions/workflows/ci.yml/badge.svg)](https://github.com/tgies/client-certificate-auth/actions/workflows/ci.yml)
 [![npm version](https://img.shields.io/npm/v/client-certificate-auth.svg)](https://www.npmjs.com/package/client-certificate-auth)
@@ -19,9 +19,11 @@ npm install client-certificate-auth
 
 ## Synopsis
 
-This middleware requires clients to present a valid, verifiable SSL certificate (mutual TLS / mTLS). The certificate is validated at the TLS layer, then passed to your callback for additional authorization logic.
+This library provides everything you need to implement mutual TLS (mTLS) authentication in Node.js. It extracts client certificates from direct TLS connections (`req.socket`) or from HTTP headers forwarded by reverse proxies (AWS ALB, Envoy, Cloudflare, Traefik, nginx, HAProxy).
 
-Compatible with Express, Connect, and any Node.js HTTP server framework that uses standard `req.socket` and `req.headers`.
+The certificate is parsed into a standard `tls.PeerCertificate` object and passed to your callback for authorization logic.
+
+Compatible with Express, Connect, or any Node.js HTTP server framework by using the framework-agnostic `extractClientCertificate` function.
 
 ## Usage
 
