@@ -38,7 +38,7 @@ const _withOptions = clientCertificateAuth(() => true, options);
 // Test 6: ClientCertRequest has clientCertificate property
 function checkRequest(req: ClientCertRequest): void {
     if (req.clientCertificate) {
-        const _cn: string | undefined = req.clientCertificate.subject?.CN;
+        const _cn: string | string[] | undefined = req.clientCertificate.subject?.CN;
     }
 }
 
