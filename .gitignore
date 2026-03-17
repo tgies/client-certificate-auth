@@ -17,3 +17,9 @@ coverage/
 # stryker temp files
 .stryker-tmp
 reports/
+
+# VitePress
+docs/.vitepress/dist
+docs/.vitepress/cache
+docs/.vitepress/.temp
+/.vitepress/
