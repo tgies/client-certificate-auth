@@ -1,0 +1,21 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": [
+    "lib/clientCertificateAuth.d.ts",
+    "lib/helpers.d.ts",
+    "lib/parsers.d.ts",
+    "lib/extractor.d.ts"
+  ],
+  "tsconfig": "tsconfig.typedoc.json",
+  "plugin": ["typedoc-plugin-markdown"],
+  "out": "docs/api",
+  "excludePrivate": true,
+  "excludeInternal": true,
+  "hideGenerator": true,
+  "readme": "none",
+  "name": "client-certificate-auth API Reference",
+  "useHTMLEncodedBrackets": true,
+  "excludeExternals": true,
+  "externalPattern": ["**/node_modules/**"],
+  "entryFileName": "index"
+}

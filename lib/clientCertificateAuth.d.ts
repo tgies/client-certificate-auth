@@ -135,7 +135,7 @@ export type Middleware = (
  * Express/Connect middleware for client SSL certificate authentication.
  *
  * @param callback - Validation function that receives the client certificate
- *   and returns true/false (sync) or Promise<boolean> (async).
+ *   and returns true/false (sync) or `Promise<boolean>` (async).
  * @param options - Configuration options
  * @returns Express middleware function
  *
