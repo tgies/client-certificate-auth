@@ -4,3 +4,4 @@ name: "CodeQL config for client-certificate-auth"
 # test fixtures with "suspicious" patterns that would trigger false positives
 paths-ignore:
   - 'test/**'
+  - 'examples/**'
