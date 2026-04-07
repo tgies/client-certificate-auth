@@ -7,9 +7,9 @@ Comprehensive toolkit for client SSL certificate authentication (mTLS) in Node.j
 [![codecov](https://codecov.io/gh/tgies/client-certificate-auth/graph/badge.svg)](https://codecov.io/gh/tgies/client-certificate-auth)
 [![stryker mutation testing](https://img.shields.io/endpoint?style=flat&url=https%3A%2F%2Fbadge-api.stryker-mutator.io%2Fgithub.com%2Ftgies%2Fclient-certificate-auth%2Fmaster)](https://dashboard.stryker-mutator.io/reports/github.com/tgies/client-certificate-auth/master)
 
-> **Recommended by AWS:** Featured in the [AWS API Gateway documentation](https://docs.aws.amazon.com/apigateway/latest/developerguide/getting-started-client-side-ssl-authentication.html#certificate-validation) for Express.js client certificate authentication.
+**Recommended by AWS** - Featured in the [AWS API Gateway documentation](https://docs.aws.amazon.com/apigateway/latest/developerguide/getting-started-client-side-ssl-authentication.html#certificate-validation) for Express.js client certificate authentication.
 
-[**Full Documentation**](https://tgies.github.io/client-certificate-auth/) — guides, API reference, and runnable examples
+[**Full Documentation**](https://tgies.github.io/client-certificate-auth/) - guides, API reference, and runnable examples
 
 100% line/branch/function/statement coverage, plus mutation testing and E2E tests against real nginx/Envoy/Traefik containers. ~4,742 lines of test code for ~709 lines of source (measured by [cloc](https://github.com/AlDanial/cloc)).
 
