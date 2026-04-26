@@ -89,7 +89,7 @@
     "typedoc-plugin-markdown": "^4.10.0",
     "typescript": "^5.9.3",
     "vitepress": "^1.6.4",
-    "ws": "^8.19.0"
+    "ws": "^8.20.0"
   },
   "directories": {
     "lib": "./lib",
