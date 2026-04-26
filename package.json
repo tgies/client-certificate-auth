@@ -85,7 +85,7 @@
     "jest": "^30.3.0",
     "lint-staged": "^16.3.2",
     "selfsigned": "^5.5.0",
-    "typedoc": "^0.28.17",
+    "typedoc": "^0.28.19",
     "typedoc-plugin-markdown": "^4.11.0",
     "typescript": "^5.9.3",
     "vitepress": "^1.6.4",
