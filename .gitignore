@@ -23,3 +23,6 @@ docs/.vitepress/dist
 docs/.vitepress/cache
 docs/.vitepress/.temp
 /.vitepress/
+
+# TypeDoc generated API reference
+docs/api/
