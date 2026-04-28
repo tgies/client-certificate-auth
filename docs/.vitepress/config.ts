@@ -11,6 +11,7 @@ export default defineConfig({
       { text: 'Guide', link: '/guide/getting-started' },
       { text: 'API Reference', link: '/api/' },
       { text: 'Examples', link: '/examples/e2e-mtls' },
+      { text: 'Support', link: '/support' },
     ],
 
     sidebar: [

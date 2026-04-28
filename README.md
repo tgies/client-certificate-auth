@@ -8,6 +8,7 @@ Comprehensive toolkit for client SSL certificate authentication (mTLS) in Node.j
 [![stryker mutation testing](https://img.shields.io/endpoint?style=flat&url=https%3A%2F%2Fbadge-api.stryker-mutator.io%2Fgithub.com%2Ftgies%2Fclient-certificate-auth%2Fmaster)](https://dashboard.stryker-mutator.io/reports/github.com/tgies/client-certificate-auth/master)
 
 [**Full Documentation**](https://tgies.github.io/client-certificate-auth/) - guides, API reference, and runnable examples
+[**Commercial Support**](#commercial-support) - consulting, custom features, and priority support for production deployments
 
 **Recommended by AWS** - Featured in the [AWS API Gateway documentation](https://docs.aws.amazon.com/apigateway/latest/developerguide/getting-started-client-side-ssl-authentication.html#certificate-validation).
 
@@ -910,6 +911,30 @@ const clientCertificateAuth = await require('client-certificate-auth').load();
 The sync CJS wrapper does not support reverse proxy options (`certificateSource`, `certificateHeader`, etc.). Passing these options will throw a descriptive error. Use `load()` to access the full ESM module from CJS code. See the [CommonJS](#commonjs) section for details.
 
 The `/helpers`, `/parsers`, and `/extractor` subpath exports each provide a `load()` function in CJS. See [Subpath Exports in CJS](#subpath-exports-in-cjs) for details.
+
+## Commercial Support
+
+`client-certificate-auth` is built and maintained by [Tony Gies](https://github.com/tgies). For organizations running it in production, commercial support is available through his consultancy, Crash United, LLC.
+
+### Support Offerings
+
+| Service | Description |
+|---------|-------------|
+| **Priority bug fixes** | Reported issues triaged and patched ahead of the public queue |
+| **Custom features & integrations** | Adapters for new reverse proxies, encoding formats, or framework wrappers |
+| **mTLS architecture consulting** | Review of your certificate issuance, rotation, and trust-chain design |
+| **Deployment security review** | Threat modeling for your specific proxy + middleware + auth flow |
+| **Private security advisories** | Coordinated disclosure for vulnerabilities affecting your deployment |
+
+For pricing, scoping, or anything not listed above, email **[support@crashunited.com](mailto:support@crashunited.com)** to discuss your needs.
+
+### Sponsorship
+
+To support ongoing development without a formal contract, [GitHub Sponsors](https://github.com/sponsors/tgies) is the simplest path.
+
+### Enterprise Procurement
+
+This package is enrolled in [Tidelift](https://tidelift.com/) (now part of SonarQube Advanced Security). If your organization already subscribes, `client-certificate-auth` is included in your coverage for security disclosures, license compliance, and version metadata.
 
 ## License
 
