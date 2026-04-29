@@ -194,6 +194,18 @@ describe('parsers module', () => {
             // %G0 is not a valid percent-encoded sequence; decodeURIComponent throws.
             assert.equal(parseUrlPemAws('%G0'), null);
         });
+
+        it('should stop scanning at a BEGIN marker with no matching END marker', () => {
+            // A valid leaf cert followed by a truncated BEGIN with no END.
+            // The scanner should return the leaf and silently ignore the trailing
+            // unterminated block rather than scanning forever.
+            const truncated = '-----BEGIN CERTIFICATE-----\nMIIBkTCCATug==\n';
+            const encoded = encodeAsAwsAlb(testPem + truncated);
+            const cert = parseUrlPemAws(encoded);
+
+            assert.ok(cert);
+            assert.equal(cert.subject.CN, 'Test Parser Client');
+        });
     });
 
     describe('parseXfcc (Envoy format)', () => {
