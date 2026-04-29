@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.3] - 2026-04-28
+
+### Fixed
+
+- **`parseUrlPemAws` chain handling for AWS API Gateway and ALB** ([#82](https://github.com/tgies/client-certificate-auth/issues/82), [#83](https://github.com/tgies/client-certificate-auth/pull/83)) — AWS sends the full client cert chain as concatenated URL-encoded PEM blocks in `X-Amzn-Mtls-Clientcert`. Node's `X509Certificate` constructor throws on multi-block PEM input, so `parseUrlPemAws` was returning `null` for any AWS deployment with intermediate CAs, silently failing authentication entirely. The parser now scans the decoded blob for PEM block boundaries via `indexOf` (O(N) in input length) and links the chain via `issuerCertificate`, mirroring the chain handling in `parseBase64Der` for Traefik and Cloudflare.
+
+### Tests
+
+- Added integration tests in `test-unit-extractor.js` exercising the AWS-documented multi-PEM format end-to-end (with and without `includeChain`).
+- Added parser-level tests in `test-unit-parsers.js` for the new chain-parsing path: a chain with one bad block, a chain where every block is bad, malformed URL encoding, and a truncated final block with no END marker.
+
 ## [1.3.2] - 2026-02-23
 
 ### Fixed
