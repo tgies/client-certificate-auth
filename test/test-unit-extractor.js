@@ -450,6 +450,72 @@ describe('extractClientCertificate', () => {
         // (The parser may or may not include it depending on the cert)
       });
 
+      it('should preserve chain via issuerCertificate when aws-alb sends multi-PEM chain with includeChain', async () => {
+        const selfsigned = (await import('selfsigned')).default;
+        const leaf = await selfsigned.generate(
+          [{ name: 'commonName', value: 'leaf.example.com' }],
+          { algorithm: 'sha256', keySize: 2048, days: 1 }
+        );
+        const intermediate = await selfsigned.generate(
+          [{ name: 'commonName', value: 'Intermediate CA' }],
+          { algorithm: 'sha256', keySize: 2048, days: 1 }
+        );
+
+        // AWS sends multi-cert chains as concatenated URL-encoded PEM blocks
+        // (per X-Amzn-Mtls-Clientcert format in API Gateway / ALB docs)
+        const chainedPem = leaf.cert + intermediate.cert;
+        const encodedCert = encodeURIComponent(chainedPem);
+
+        const req = {
+          headers: {
+            'x-amzn-mtls-clientcert': encodedCert,
+          },
+          socket: { authorized: false },
+        };
+
+        const result = extractClientCertificate(req, {
+          certificateSource: 'aws-alb',
+          includeChain: true,
+        });
+
+        assert.strictEqual(result.success, true);
+        assert.ok(result.certificate);
+        assert.strictEqual(result.certificate.subject.CN, 'leaf.example.com');
+        assert.ok(result.certificate.issuerCertificate, 'leaf should have issuerCertificate populated from intermediate');
+        assert.strictEqual(result.certificate.issuerCertificate.subject.CN, 'Intermediate CA');
+      });
+
+      it('should strip issuerCertificate by default from aws-alb multi-PEM chain', async () => {
+        const selfsigned = (await import('selfsigned')).default;
+        const leaf = await selfsigned.generate(
+          [{ name: 'commonName', value: 'leaf.example.com' }],
+          { algorithm: 'sha256', keySize: 2048, days: 1 }
+        );
+        const intermediate = await selfsigned.generate(
+          [{ name: 'commonName', value: 'Intermediate CA' }],
+          { algorithm: 'sha256', keySize: 2048, days: 1 }
+        );
+
+        const chainedPem = leaf.cert + intermediate.cert;
+        const encodedCert = encodeURIComponent(chainedPem);
+
+        const req = {
+          headers: {
+            'x-amzn-mtls-clientcert': encodedCert,
+          },
+          socket: { authorized: false },
+        };
+
+        const result = extractClientCertificate(req, {
+          certificateSource: 'aws-alb',
+        });
+
+        assert.strictEqual(result.success, true);
+        assert.ok(result.certificate);
+        assert.strictEqual(result.certificate.subject.CN, 'leaf.example.com');
+        assert.strictEqual(result.certificate.issuerCertificate, undefined);
+      });
+
       it('should strip issuerCertificate from base64-der chained cert by default', async () => {
         // Generate two certs to create a chain
         const selfsigned = (await import('selfsigned')).default;

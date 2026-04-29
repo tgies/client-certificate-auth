@@ -170,6 +170,30 @@ describe('parsers module', () => {
                 .replace(/%2F/g, '/');
             assert.equal(parseUrlPemAws(encoded), null);
         });
+
+        it('should skip a malformed PEM block in a chain and return the valid leaf', () => {
+            // Valid leaf followed by a syntactically-correct PEM frame containing invalid base64.
+            // The leaf should still parse; the bad block is silently dropped.
+            const invalidBlock = '-----BEGIN CERTIFICATE-----\nNOT_VALID_BASE64\n-----END CERTIFICATE-----\n';
+            const encoded = encodeAsAwsAlb(testPem + invalidBlock);
+            const cert = parseUrlPemAws(encoded);
+
+            assert.ok(cert);
+            assert.equal(cert.subject.CN, 'Test Parser Client');
+        });
+
+        it('should return null when every PEM block in a chain is malformed', () => {
+            const invalidBlock1 = '-----BEGIN CERTIFICATE-----\nNOT_VALID_BASE64_1\n-----END CERTIFICATE-----\n';
+            const invalidBlock2 = '-----BEGIN CERTIFICATE-----\nNOT_VALID_BASE64_2\n-----END CERTIFICATE-----\n';
+            const encoded = encodeAsAwsAlb(invalidBlock1 + invalidBlock2);
+
+            assert.equal(parseUrlPemAws(encoded), null);
+        });
+
+        it('should return null when URL encoding is malformed', () => {
+            // %G0 is not a valid percent-encoded sequence; decodeURIComponent throws.
+            assert.equal(parseUrlPemAws('%G0'), null);
+        });
     });
 
     describe('parseXfcc (Envoy format)', () => {
