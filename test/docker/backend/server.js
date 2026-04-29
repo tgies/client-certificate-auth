@@ -12,19 +12,24 @@ import http from 'node:http';
 import clientCertificateAuth from 'client-certificate-auth';
 import { allowCN, allowIssuer, allOf, anyOf } from 'client-certificate-auth/helpers';
 
-// Path-based configuration
+// Path-based configuration. includeChain: true so the test can observe
+// whether the parser preserved the cert chain via issuerCertificate (the
+// extractor strips it by default).
 const PATH_CONFIGS = {
     '/nginx': {
         certificateHeader: 'x-ssl-client-cert',
         headerEncoding: 'url-pem',
+        includeChain: true,
     },
     '/envoy': {
         certificateHeader: 'x-forwarded-client-cert',
         headerEncoding: 'xfcc',
+        includeChain: true,
     },
     '/traefik': {
         certificateHeader: 'x-forwarded-tls-client-cert',
         headerEncoding: 'base64-der',
+        includeChain: true,
     },
 };
 
@@ -150,12 +155,17 @@ const server = http.createServer((req, res) => {
             }));
         } else {
             res.statusCode = 200;
+            const cert = req.clientCertificate;
             res.end(JSON.stringify({
                 success: true,
                 clientCN: req.clientCN,
                 proxyType: proxyType,
                 headerUsed: config.certificateHeader,
                 rawHeaderValue: req.headers[config.certificateHeader] || null,
+                // Chain diagnostics: set when the parser linked the issuer
+                // chain via issuerCertificate. null when chain info was lost.
+                issuerCN: cert?.issuer?.CN || null,
+                issuerCertificateSubjectCN: cert?.issuerCertificate?.subject?.CN || null,
             }));
         }
     });

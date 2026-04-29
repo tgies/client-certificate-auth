@@ -115,8 +115,69 @@ export async function generateClientCertificate(commonName = 'Test Client', opti
 }
 
 /**
+ * Generate an intermediate CA + chain-signed client cert under an existing
+ * root CA. Used to extend an existing single-tier mTLS test setup with a
+ * 3-tier chain (root -> intermediate -> client) without disturbing the
+ * existing trust configuration.
+ *
+ * Chain shape:
+ *   rootCa (caller-supplied)
+ *     |- intermediate (CA, signed by rootCa)
+ *          |- client (leaf, signed by intermediate)
+ *
+ * The client should present [client.cert, intermediate.cert] (concatenated)
+ * to the TLS handshake so the proxy can walk the chain to the trusted root.
+ *
+ * @param {{cert: string, key: string}} rootCa - The existing root CA
+ * @param {Object} [options]
+ * @param {string} [options.intermediateCommonName='Test Intermediate CA']
+ * @param {string} [options.clientCommonName='Test Chain Client']
+ * @returns {Promise<{intermediate: {cert, key}, client: {cert, key}}>}
+ */
+export async function generateIntermediateChain(rootCa, options = {}) {
+    const {
+        intermediateCommonName = 'Test Intermediate CA',
+        clientCommonName = 'Test Chain Client',
+    } = options;
+
+    const intermediate = await selfsigned.generate(
+        [{ name: 'commonName', value: intermediateCommonName }],
+        {
+            algorithm: 'sha256',
+            keySize: 2048,
+            notBeforeDate: new Date(Date.now() - 60_000),
+            ca: { key: rootCa.key, cert: rootCa.cert },
+            extensions: [
+                { name: 'basicConstraints', cA: true, pathLenConstraint: 0, critical: true },
+                { name: 'keyUsage', keyCertSign: true, cRLSign: true, critical: true },
+            ],
+        }
+    );
+
+    const client = await selfsigned.generate(
+        [{ name: 'commonName', value: clientCommonName }],
+        {
+            algorithm: 'sha256',
+            keySize: 2048,
+            notBeforeDate: new Date(Date.now() - 60_000),
+            ca: { key: intermediate.private, cert: intermediate.cert },
+            extensions: [
+                { name: 'basicConstraints', cA: false, critical: true },
+                { name: 'keyUsage', digitalSignature: true, critical: true },
+                { name: 'extKeyUsage', clientAuth: true },
+            ],
+        }
+    );
+
+    return {
+        intermediate: { cert: intermediate.cert, key: intermediate.private },
+        client: { cert: client.cert, key: client.private },
+    };
+}
+
+/**
  * Convert PEM certificate to DER buffer.
- * 
+ *
  * @param {string} pem - PEM-encoded certificate
  * @returns {Buffer} DER-encoded certificate
  */

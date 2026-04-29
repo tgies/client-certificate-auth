@@ -17,18 +17,40 @@ import https from 'node:https';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { generateMtlsCertificates, generateClientCertificate } from './test-helpers.js';
+import { generateMtlsCertificates, generateClientCertificate, generateIntermediateChain } from './test-helpers.js';
 import os from 'node:os';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DOCKER_DIR = path.join(__dirname, 'docker');
 
-// Configuration
-const NGINX_STRICT_PORT = 8443;   // nginx with ssl_verify_client on
-const NGINX_OPTIONAL_PORT = 8444; // nginx with ssl_verify_client optional_no_ca
-const ENVOY_PORT = 8445;          // Envoy with XFCC header
-const TRAEFIK_PORT = 8446;        // Traefik with PassTLSClientCert
+// Configuration. Host ports are assigned ephemerally by Docker (see
+// docker-compose.yml `ports: - "443"`) and discovered after compose up via
+// `docker compose port`. Keeps the suite robust against host-side port
+// conflicts (e.g. a Windows service holding 8443/8444).
+let NGINX_STRICT_PORT;
+let NGINX_OPTIONAL_PORT;
+let ENVOY_PORT;
+let ENVOY_CHAIN_ONLY_PORT;
+let TRAEFIK_PORT;
 const DOCKER_TIMEOUT = 120000;
+
+/**
+ * Resolve the host port that Docker Compose published for a service's
+ * container port. `docker compose port <svc> <port>` prints one line per
+ * binding ("0.0.0.0:32768", "[::]:32768"); take the first IPv4 binding.
+ */
+function getPublishedPort(service, containerPort, env) {
+    const out = execSync(`docker compose port ${service} ${containerPort}`, {
+        cwd: DOCKER_DIR,
+        env,
+        encoding: 'utf8',
+    });
+    const match = out.match(/^(?:0\.0\.0\.0|127\.0\.0\.1):(\d+)/m);
+    if (!match) {
+        throw new Error(`Could not resolve published port for ${service}:${containerPort} (got: ${out.trim()})`);
+    }
+    return parseInt(match[1], 10);
+}
 
 /**
  * Generate certificates and write them to disk for Docker containers.
@@ -128,10 +150,17 @@ const describeIfDocker = isDockerAvailable() ? describe : describe.skip;
 
 describeIfDocker('Reverse Proxy Integration Tests', () => {
     let certs;
+    let chainCerts; // { intermediate, client } where client is signed by intermediate, intermediate by certs.ca
+    let chainClientPresentedCert; // [client, intermediate] PEMs concatenated for TLS handshake
 
     beforeAll(async () => {
         // Generate certificates
         certs = await generateAndWriteCertificates();
+
+        // Generate a 3-tier chain (root=certs.ca -> intermediate -> chain client)
+        // so we can exercise multi-block PEM forwarding through the proxies.
+        chainCerts = await generateIntermediateChain(certs.ca);
+        chainClientPresentedCert = chainCerts.client.cert + '\n' + chainCerts.intermediate.cert;
 
         // Build and start Docker Compose
         console.log('Starting Docker Compose...');
@@ -149,6 +178,14 @@ describeIfDocker('Reverse Proxy Integration Tests', () => {
             timeout: DOCKER_TIMEOUT,
             env: dockerEnv,
         });
+
+        // Discover the ephemeral host ports Docker assigned.
+        NGINX_STRICT_PORT = getPublishedPort('nginx-strict', 443, dockerEnv);
+        NGINX_OPTIONAL_PORT = getPublishedPort('nginx-optional', 443, dockerEnv);
+        ENVOY_PORT = getPublishedPort('envoy', 443, dockerEnv);
+        ENVOY_CHAIN_ONLY_PORT = getPublishedPort('envoy-chain-only', 443, dockerEnv);
+        TRAEFIK_PORT = getPublishedPort('traefik', 443, dockerEnv);
+        console.log(`Discovered ports: nginx-strict=${NGINX_STRICT_PORT}, nginx-optional=${NGINX_OPTIONAL_PORT}, envoy=${ENVOY_PORT}, envoy-chain-only=${ENVOY_CHAIN_ONLY_PORT}, traefik=${TRAEFIK_PORT}`);
 
         // Wait for nginx-strict to be ready
         console.log('Waiting for nginx-strict to be ready...');
@@ -191,6 +228,20 @@ describeIfDocker('Reverse Proxy Integration Tests', () => {
             throw new Error('Envoy failed to start within timeout');
         }
         console.log('Envoy is ready!');
+
+        // Wait for Envoy chain-only to be ready
+        console.log('Waiting for Envoy (chain-only) to be ready...');
+        const envoyChainReady = await waitForService(
+            `https://localhost:${ENVOY_CHAIN_ONLY_PORT}/`,
+            certs.client.cert,
+            certs.client.key,
+            certs.ca.cert
+        );
+
+        if (!envoyChainReady) {
+            throw new Error('Envoy (chain-only) failed to start within timeout');
+        }
+        console.log('Envoy (chain-only) is ready!');
 
         // Wait for Traefik to be ready
         console.log('Waiting for Traefik to be ready...');
@@ -252,6 +303,23 @@ describeIfDocker('Reverse Proxy Integration Tests', () => {
 
             // nginx returns HTML error page
             expect(response).toContain('No required SSL certificate was sent');
+        });
+
+        it('should authenticate client signed via intermediate (chain)', async () => {
+            // Client presents [leaf, intermediate]. nginx walks chain to root,
+            // accepts, and forwards $ssl_client_escaped_cert which is leaf-only
+            // by spec (no chain variable exists in nginx).
+            const response = await makeRequest(
+                `https://localhost:${NGINX_STRICT_PORT}/`,
+                chainClientPresentedCert,
+                chainCerts.client.key,
+                certs.ca.cert
+            );
+
+            expect(response.success).toBe(true);
+            expect(response.clientCN).toBe('Test Chain Client');
+            // nginx forwards leaf only, so we have no chain to attach.
+            expect(response.issuerCertificateSubjectCN).toBeNull();
         });
 
         it('should reject request with untrusted certificate (nginx 400)', async () => {
@@ -387,6 +455,76 @@ describeIfDocker('Reverse Proxy Integration Tests', () => {
                 )
             ).rejects.toThrow();
         });
+
+        it('should authenticate client signed via intermediate (chain)', async () => {
+            // Client presents [leaf, intermediate]. Envoy validates against
+            // root and emits XFCC with both Cert= (leaf) and Chain= (full chain
+            // URL-encoded multi-block PEM, in field order Hash;Cert;Chain;Subject).
+            // Pre-fix: parseXfcc returns the first match (Cert), giving the leaf
+            // but no chain - issuerCertificate is undefined.
+            // Post-fix: parseXfcc prefers Chain when present and parses its
+            // multi-block PEM, preserving the chain via issuerCertificate.
+            const response = await makeRequest(
+                `https://localhost:${ENVOY_PORT}/`,
+                chainClientPresentedCert,
+                chainCerts.client.key,
+                certs.ca.cert
+            );
+
+            expect(response.success).toBe(true);
+            expect(response.clientCN).toBe('Test Chain Client');
+
+            // Diagnostic: confirm Envoy actually emitted a Chain field.
+            const xfcc = response.rawHeaderValue;
+            expect(xfcc).toMatch(/Chain="?[^;,]+/);
+
+            // Chain MUST be preserved: leaf's issuerCertificate should point
+            // to the intermediate cert.
+            expect(response.issuerCertificateSubjectCN).toBe('Test Intermediate CA');
+        });
+    });
+
+    // Tests with Envoy in chain-only XFCC config (Chain=, no Cert=).
+    // This config exposes parseXfcc's multi-block PEM handling - without a
+    // Cert= field to short-circuit on, the parser must process the Chain
+    // field correctly even when it contains multiple PEM blocks.
+    describe('Envoy chain-only (Chain= field, no Cert=)', () => {
+        it('should authenticate single-cert client (Chain has one block)', async () => {
+            const response = await makeRequest(
+                `https://localhost:${ENVOY_CHAIN_ONLY_PORT}/`,
+                certs.client.cert,
+                certs.client.key,
+                certs.ca.cert
+            );
+
+            expect(response.success).toBe(true);
+            expect(response.clientCN).toBe('Test Client');
+            // Confirm the XFCC has Chain= but no Cert= field
+            expect(response.rawHeaderValue).toMatch(/Chain="?[^;,]+/);
+            expect(response.rawHeaderValue).not.toMatch(/Cert=/);
+        });
+
+        it('should authenticate chain client (Chain has multi-block PEM)', async () => {
+            // Pre-fix: parseXfcc passes the multi-block Chain value to
+            // X509Certificate(pem). On Node 22+ that returns the leaf without
+            // throwing - but toLegacyObject() drops the issuerCertificate
+            // property, so the chain info is silently lost. Auth still works
+            // but req.clientCertificate.issuerCertificate is undefined.
+            // Post-fix: parseXfcc splits the multi-block Chain into individual
+            // blocks, parses each, links via issuerCertificate. Chain preserved.
+            const response = await makeRequest(
+                `https://localhost:${ENVOY_CHAIN_ONLY_PORT}/`,
+                chainClientPresentedCert,
+                chainCerts.client.key,
+                certs.ca.cert
+            );
+
+            expect(response.success).toBe(true);
+            expect(response.clientCN).toBe('Test Chain Client');
+            // The chain MUST be preserved: the leaf's issuerCertificate
+            // should point to the intermediate cert.
+            expect(response.issuerCertificateSubjectCN).toBe('Test Intermediate CA');
+        });
     });
 
     // Tests with Traefik proxy (uses PassTLSClientCert middleware)
@@ -423,6 +561,28 @@ describeIfDocker('Reverse Proxy Integration Tests', () => {
                     certs.ca.cert
                 )
             ).rejects.toThrow();
+        });
+
+        it('should authenticate client signed via intermediate (chain)', async () => {
+            // Client presents [leaf, intermediate]. Traefik validates against
+            // root, emits X-Forwarded-Tls-Client-Cert as comma-separated base64
+            // (delimiters stripped). parseBase64Der splits on comma and links
+            // the chain via issuerCertificate.
+            const response = await makeRequest(
+                `https://localhost:${TRAEFIK_PORT}/`,
+                chainClientPresentedCert,
+                chainCerts.client.key,
+                certs.ca.cert
+            );
+
+            expect(response.success).toBe(true);
+            expect(response.clientCN).toBe('Test Chain Client');
+
+            // Diagnostic: confirm Traefik forwarded a comma-separated chain.
+            expect(response.rawHeaderValue).toContain(',');
+
+            // Chain should be preserved by parseBase64Der.
+            expect(response.issuerCertificateSubjectCN).toBe('Test Intermediate CA');
         });
     });
 

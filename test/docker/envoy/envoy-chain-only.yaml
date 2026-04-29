@@ -12,9 +12,12 @@ static_resources:
                 "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
                 stat_prefix: ingress_http
                 forward_client_cert_details: SANITIZE_SET
+                # Chain-only config: emits XFCC with Chain= (full chain, URL-encoded
+                # multi-block PEM) but no Cert= field. Surfaces parseXfcc multi-block
+                # handling - without a Cert= field to short-circuit on, the parser
+                # must process the multi-block Chain field correctly.
                 set_current_client_cert_details:
                   subject: true
-                  cert: true
                   chain: true
                 route_config:
                   name: local_route
