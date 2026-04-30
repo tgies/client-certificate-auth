@@ -360,6 +360,111 @@ describe('parsers module', () => {
             assert.ok(cert, 'Should parse first element despite commas in quoted Subject');
             assert.equal(cert.subject.CN, 'Test Parser Client');
         });
+
+        it('should chain multi-block PEM in Chain field via issuerCertificate', async () => {
+            // Envoy with `chain: true` only emits Chain= as a single field
+            // containing the full chain as URL-encoded multi-block PEM. Pre-fix,
+            // pemToCertificate(multiBlockPem) returned the leaf without
+            // issuerCertificate (toLegacyObject drops it). Post-fix, parseXfcc
+            // splits the multi-block input and links via issuerCertificate.
+            const intermediateCert = await generateClientCertificate('Test Intermediate');
+            const multiBlock = testPem + intermediateCert.cert;
+            const xfcc = `Hash=abc;Chain="${encodeURIComponent(multiBlock)}"`;
+
+            const cert = parseXfcc(xfcc);
+            assert.ok(cert, 'Should parse multi-block Chain field');
+            assert.equal(cert.subject.CN, 'Test Parser Client');
+            assert.ok(cert.issuerCertificate, 'Chain should be linked via issuerCertificate');
+            assert.equal(cert.issuerCertificate.subject.CN, 'Test Intermediate');
+        });
+
+        it('should prefer Chain over Cert when both fields are present', async () => {
+            // Envoy with both `cert: true` and `chain: true` emits Cert= (leaf)
+            // and Chain= (full chain). The Chain field carries strictly more
+            // information than Cert, so we prefer Chain.
+            const intermediateCert = await generateClientCertificate('Test Intermediate');
+            const multiBlock = testPem + intermediateCert.cert;
+            // Cert appears AFTER Chain. This ordering matters: it ensures the
+            // parser routes each key to its own variable. If the parser routed
+            // both to the same variable (e.g. last-write-wins), the late Cert
+            // would overwrite Chain and we'd silently lose the chain info.
+            const xfcc = `Hash=abc;Chain="${encodeURIComponent(multiBlock)}";Cert="${encodeURIComponent(testPem)}"`;
+
+            const cert = parseXfcc(xfcc);
+            assert.ok(cert);
+            assert.equal(cert.subject.CN, 'Test Parser Client');
+            // If we'd picked Cert (leaf-only), issuerCertificate would be undefined.
+            assert.ok(cert.issuerCertificate, 'Should pick Chain so chain info is preserved');
+            assert.equal(cert.issuerCertificate.subject.CN, 'Test Intermediate');
+        });
+
+        it('should still prefer Chain when Cert appears before Chain', async () => {
+            // Same prefer-Chain semantic, opposite key order. Pinning that the
+            // preference is not order-dependent (i.e. parser collects all keys
+            // first, then chooses, rather than first-or-last-match).
+            const intermediateCert = await generateClientCertificate('Test Intermediate');
+            const multiBlock = testPem + intermediateCert.cert;
+            const xfcc = `Hash=abc;Cert="${encodeURIComponent(testPem)}";Chain="${encodeURIComponent(multiBlock)}"`;
+
+            const cert = parseXfcc(xfcc);
+            assert.ok(cert);
+            assert.equal(cert.subject.CN, 'Test Parser Client');
+            assert.ok(cert.issuerCertificate);
+            assert.equal(cert.issuerCertificate.subject.CN, 'Test Intermediate');
+        });
+
+        it('should drop a bad block in multi-block Chain and return the valid leaf', () => {
+            const invalidBlock = '-----BEGIN CERTIFICATE-----\nNOT_VALID_BASE64\n-----END CERTIFICATE-----\n';
+            const xfcc = `Hash=abc;Chain="${encodeURIComponent(testPem + invalidBlock)}"`;
+
+            const cert = parseXfcc(xfcc);
+            assert.ok(cert, 'Bad block dropped, valid leaf returned');
+            assert.equal(cert.subject.CN, 'Test Parser Client');
+        });
+
+        it('should drop a mid-chain bad block and chain around it cleanly', async () => {
+            // Three blocks: valid leaf, invalid intermediate, valid second cert.
+            // Without the .filter(Boolean), the leaf's issuerCertificate would
+            // get set to null instead of pointing past the bad block.
+            const intermediateCert = await generateClientCertificate('Test Intermediate');
+            const invalidBlock = '-----BEGIN CERTIFICATE-----\nNOT_VALID_BASE64\n-----END CERTIFICATE-----\n';
+            const blob = testPem + invalidBlock + intermediateCert.cert;
+            const xfcc = `Hash=abc;Chain="${encodeURIComponent(blob)}"`;
+
+            const cert = parseXfcc(xfcc);
+            assert.ok(cert);
+            assert.equal(cert.subject.CN, 'Test Parser Client');
+            // Bad block was dropped, so the leaf's issuerCertificate should
+            // point to the intermediate cert (the next valid block) rather
+            // than null/undefined.
+            assert.ok(cert.issuerCertificate, 'leaf must chain to next valid cert, not null from dropped block');
+            assert.equal(cert.issuerCertificate.subject.CN, 'Test Intermediate');
+        });
+
+        it('should return null when every block in multi-block Chain is invalid', () => {
+            const invalidBlock1 = '-----BEGIN CERTIFICATE-----\nNOT_VALID_BASE64_1\n-----END CERTIFICATE-----\n';
+            const invalidBlock2 = '-----BEGIN CERTIFICATE-----\nNOT_VALID_BASE64_2\n-----END CERTIFICATE-----\n';
+            const xfcc = `Hash=abc;Chain="${encodeURIComponent(invalidBlock1 + invalidBlock2)}"`;
+
+            assert.equal(parseXfcc(xfcc), null);
+        });
+
+        it('should ignore an unterminated trailing PEM block in Chain', () => {
+            // Valid leaf followed by BEGIN with no END - scanner should stop
+            // there rather than hang or include junk in the leaf.
+            const truncated = '-----BEGIN CERTIFICATE-----\nMIIBkTCCATug==\n';
+            const xfcc = `Hash=abc;Chain="${encodeURIComponent(testPem + truncated)}"`;
+
+            const cert = parseXfcc(xfcc);
+            assert.ok(cert);
+            assert.equal(cert.subject.CN, 'Test Parser Client');
+        });
+
+        it('should return null when Chain value has malformed URL encoding', () => {
+            // %G0 is not a valid percent-encoded sequence; decodeURIComponent
+            // throws URIError, which the outer try/catch turns into null.
+            assert.equal(parseXfcc('Hash=abc;Chain=%G0'), null);
+        });
     });
 
     describe('parseBase64Der (Cloudflare format)', () => {
