@@ -384,13 +384,32 @@ describe('parsers module', () => {
             // information than Cert, so we prefer Chain.
             const intermediateCert = await generateClientCertificate('Test Intermediate');
             const multiBlock = testPem + intermediateCert.cert;
-            const xfcc = `Hash=abc;Cert="${encodeURIComponent(testPem)}";Chain="${encodeURIComponent(multiBlock)}"`;
+            // Cert appears AFTER Chain. This ordering matters: it ensures the
+            // parser routes each key to its own variable. If the parser routed
+            // both to the same variable (e.g. last-write-wins), the late Cert
+            // would overwrite Chain and we'd silently lose the chain info.
+            const xfcc = `Hash=abc;Chain="${encodeURIComponent(multiBlock)}";Cert="${encodeURIComponent(testPem)}"`;
 
             const cert = parseXfcc(xfcc);
             assert.ok(cert);
             assert.equal(cert.subject.CN, 'Test Parser Client');
             // If we'd picked Cert (leaf-only), issuerCertificate would be undefined.
             assert.ok(cert.issuerCertificate, 'Should pick Chain so chain info is preserved');
+            assert.equal(cert.issuerCertificate.subject.CN, 'Test Intermediate');
+        });
+
+        it('should still prefer Chain when Cert appears before Chain', async () => {
+            // Same prefer-Chain semantic, opposite key order. Pinning that the
+            // preference is not order-dependent (i.e. parser collects all keys
+            // first, then chooses, rather than first-or-last-match).
+            const intermediateCert = await generateClientCertificate('Test Intermediate');
+            const multiBlock = testPem + intermediateCert.cert;
+            const xfcc = `Hash=abc;Cert="${encodeURIComponent(testPem)}";Chain="${encodeURIComponent(multiBlock)}"`;
+
+            const cert = parseXfcc(xfcc);
+            assert.ok(cert);
+            assert.equal(cert.subject.CN, 'Test Parser Client');
+            assert.ok(cert.issuerCertificate);
             assert.equal(cert.issuerCertificate.subject.CN, 'Test Intermediate');
         });
 
@@ -401,6 +420,25 @@ describe('parsers module', () => {
             const cert = parseXfcc(xfcc);
             assert.ok(cert, 'Bad block dropped, valid leaf returned');
             assert.equal(cert.subject.CN, 'Test Parser Client');
+        });
+
+        it('should drop a mid-chain bad block and chain around it cleanly', async () => {
+            // Three blocks: valid leaf, invalid intermediate, valid second cert.
+            // Without the .filter(Boolean), the leaf's issuerCertificate would
+            // get set to null instead of pointing past the bad block.
+            const intermediateCert = await generateClientCertificate('Test Intermediate');
+            const invalidBlock = '-----BEGIN CERTIFICATE-----\nNOT_VALID_BASE64\n-----END CERTIFICATE-----\n';
+            const blob = testPem + invalidBlock + intermediateCert.cert;
+            const xfcc = `Hash=abc;Chain="${encodeURIComponent(blob)}"`;
+
+            const cert = parseXfcc(xfcc);
+            assert.ok(cert);
+            assert.equal(cert.subject.CN, 'Test Parser Client');
+            // Bad block was dropped, so the leaf's issuerCertificate should
+            // point to the intermediate cert (the next valid block) rather
+            // than null/undefined.
+            assert.ok(cert.issuerCertificate, 'leaf must chain to next valid cert, not null from dropped block');
+            assert.equal(cert.issuerCertificate.subject.CN, 'Test Intermediate');
         });
 
         it('should return null when every block in multi-block Chain is invalid', () => {
