@@ -659,9 +659,9 @@ describe('helpers', () => {
             assert.equal(await check(mockCert, mockReq), true);
         });
 
-        it('should return true with zero callbacks (vacuous truth)', async () => {
+        it('should return false with zero callbacks (fail closed)', async () => {
             const check = allOf();
-            assert.equal(await check(mockCert), true);
+            assert.equal(await check(mockCert), false);
         });
 
         it('should return false when callback returns truthy non-boolean value', async () => {
