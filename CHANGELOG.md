@@ -9,10 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **`allOf()` zero-callback vacuous truth** — calling `allOf()` with no callbacks no longer silently authorizes all certificates. `[].every(...)` returns `true` in JavaScript (vacuous truth), so an empty composed policy reaching `allOf()` would authorize any certificate. Empty callback lists now return `() => false`, matching the v1.3.2 fix for `allowIssuer({})` and `allowSubject({})`. `anyOf()` was already safe because `[].some(...)` returns `false`.
+- **`parseXfcc` chain handling for Envoy** ([#85](https://github.com/tgies/client-certificate-auth/pull/85)) — Envoy's text-format XFCC header carries the leaf cert in `Cert=` and (when chain-forwarding is enabled) the full chain in `Chain=`. Pre-fix, `parseXfcc` handed multi-block PEM to `X509Certificate` directly; on Node 22+ this returns just the leaf with no `issuerCertificate`, silently losing chain data for `includeChain: true` consumers. The parser now scans for PEM block boundaries via `indexOf` and links the chain via `issuerCertificate`, mirroring the AWS path. When XFCC carries both `Cert` and `Chain`, the parser prefers `Chain` because per the Envoy spec it carries strictly more information. The shared `splitPemBlocks` and `chainFromMultiBlockPem` helpers are now factored out so the AWS and XFCC paths share one tested chain-parsing implementation.
+- **`allOf()` zero-callback vacuous truth** ([#87](https://github.com/tgies/client-certificate-auth/pull/87)) — calling `allOf()` with no callbacks no longer silently authorizes all certificates. `[].every(...)` returns `true` in JavaScript (vacuous truth), so an empty composed policy reaching `allOf()` would authorize any certificate. Empty callback lists now return `() => false`, matching the v1.3.2 fix for `allowIssuer({})` and `allowSubject({})`. `anyOf()` was already safe because `[].some(...)` returns `false`.
 
 ### Tests
 
+- Added XFCC parser tests covering multi-block chain parsing, prefer-Chain semantic in both field orders, mid-chain bad block, all-blocks-bad, unterminated trailing block, and malformed URL encoding.
+- Added a 3-tier intermediate chain test infrastructure (`generateIntermediateChain()` in `test-helpers.js`) and a chain-only Envoy listener (`docker/envoy/envoy-chain-only.yaml`) so E2E tests observe `issuerCertificate` preservation through real proxies.
 - Inverted the existing zero-callback pinning test for `allOf()` to assert fail-closed behavior.
 
 ## [1.3.3] - 2026-04-28
@@ -35,6 +38,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Tests
 
 - Added empty match object tests for `allowIssuer` and `allowSubject`
+
+## [1.3.1] - 2026-02-17
+
+### Fixed
+
+- **Multi-valued DN field handling** — Node.js returns `string[]` (not `string`) for certificate DN attributes with multiple values (e.g. `OU=Engineering, OU=DevTeam`). `allowCN`, `allowOU`, `allowOrganization`, `allowIssuer`, `allowSubject`, and `allowEmail` silently returned `false` for such certificates. Added a `toArray()` normalizer that coerces `string | string[]` to `string[]` before comparison. Ref: [DefinitelyTyped/DefinitelyTyped#74538](https://github.com/DefinitelyTyped/DefinitelyTyped/issues/74538).
+
+### Tests
+
+- Added 17 tests covering multi-valued and null/undefined field scenarios.
+
+## [1.3.0] - 2026-02-16
+
+### Added
+
+- **CJS subpath exports for `/helpers`, `/parsers`, `/extractor`** — CJS consumers can now access submodule exports via async `load()` wrappers, matching the established pattern from the main module's CJS wrapper. Each wrapper dynamically imports the ESM original, avoiding code duplication across ~750 lines of implementation.
+
+### Tests
+
+- Added 12 CJS unit tests for the three subpath wrappers and CJS type tests in `test-typescript-types.ts`.
 
 ## [1.2.0] - 2026-02-09
 
@@ -183,7 +206,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix handling of empty certificates
 - Unit testing with mocks
 
+[Unreleased]: https://github.com/tgies/client-certificate-auth/compare/v1.3.3...HEAD
+[1.3.3]: https://github.com/tgies/client-certificate-auth/compare/v1.3.2...v1.3.3
 [1.3.2]: https://github.com/tgies/client-certificate-auth/compare/v1.3.1...v1.3.2
+[1.3.1]: https://github.com/tgies/client-certificate-auth/compare/v1.3.0...v1.3.1
+[1.3.0]: https://github.com/tgies/client-certificate-auth/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/tgies/client-certificate-auth/compare/v1.1.3...v1.2.0
 [1.1.3]: https://github.com/tgies/client-certificate-auth/compare/v1.1.2...v1.1.3
 [1.1.2]: https://github.com/tgies/client-certificate-auth/compare/v1.1.1...v1.1.2
