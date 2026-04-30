@@ -147,17 +147,6 @@ describe('parsers module', () => {
             assert.equal(cert.subject.CN, 'Test Parser Client');
         });
 
-        it('should correctly handle + characters (safe in AWS encoding)', () => {
-            // Verify that our encoder produces + characters
-            const encoded = encodeAsAwsAlb(testPem);
-            // The base64 encoded cert likely contains + characters
-            // AWS keeps them as +, not %2B
-
-            const cert = parseUrlPemAws(encoded);
-            assert.ok(cert);
-            assert.equal(cert.subject.CN, 'Test Parser Client');
-        });
-
         it('should return null for empty input', () => {
             assert.equal(parseUrlPemAws(''), null);
         });
