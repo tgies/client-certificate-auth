@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **`allOf()` zero-callback vacuous truth** — calling `allOf()` with no callbacks no longer silently authorizes all certificates. `[].every(...)` returns `true` in JavaScript (vacuous truth), so an empty composed policy reaching `allOf()` would authorize any certificate. Empty callback lists now return `() => false`, matching the v1.3.2 fix for `allowIssuer({})` and `allowSubject({})`. `anyOf()` was already safe because `[].some(...)` returns `false`.
+
+### Tests
+
+- Inverted the existing zero-callback pinning test for `allOf()` to assert fail-closed behavior.
+
 ## [1.3.3] - 2026-04-28
 
 ### Fixed
