@@ -36,6 +36,18 @@ export default [
         }
     },
     {
-        ignores: ['node_modules/**', 'lib/**/*.cjs', 'lib/**/*.d.ts', 'lib/**/*.d.cts', '.stryker-tmp/**']
+        ignores: [
+            'node_modules/**',
+            'lib/**/*.cjs',
+            'lib/**/*.d.ts',
+            'lib/**/*.d.cts',
+            '.stryker-tmp/**',
+            'coverage/**',
+            'reports/**',
+            '.vitepress/**',
+            'docs/.vitepress/cache/**',
+            'docs/.vitepress/dist/**',
+            'docs/api/**'
+        ]
     }
 ];

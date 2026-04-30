@@ -7,6 +7,7 @@ WebSocket connections work seamlessly with mTLS because the TLS handshake occurs
 When using the [`ws`](https://github.com/websockets/ws) library with `noServer: true`, you handle the `upgrade` event yourself and run the middleware manually. The middleware needs a response-like object and a `next` callback:
 
 ```javascript
+import fs from 'node:fs';
 import https from 'node:https';
 import { WebSocketServer } from 'ws';
 import clientCertificateAuth from 'client-certificate-auth';
@@ -67,6 +68,7 @@ The key details in this pattern:
 Socket.IO provides its own middleware mechanism. Use it to run certificate authentication before connections are established:
 
 ```javascript
+import fs from 'node:fs';
 import https from 'node:https';
 import { Server } from 'socket.io';
 import clientCertificateAuth from 'client-certificate-auth';
