@@ -1,17 +1,41 @@
 version: 2
 updates:
-  - package-ecosystem: npm
-    directory: /
+  - package-ecosystem: "npm"
+    directories:
+      - "/"
+      - "/examples/e2e-mtls"
     schedule:
-      interval: weekly
-    versioning-strategy: increase
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/Chicago"
+    versioning-strategy: "increase-if-necessary"
     cooldown:
-      default-days: 7
-      semver-major-days: 7
+      semver-major-days: 14
+    groups:
+      npm-dev-tools:
+        dependency-type: "development"
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+      npm-production:
+        dependency-type: "production"
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
 
-  - package-ecosystem: github-actions
-    directory: /
+  - package-ecosystem: "github-actions"
+    directory: "/"
     schedule:
-      interval: weekly
-    cooldown:
-      default-days: 7
+      interval: "weekly"
+      day: "monday"
+      time: "09:30"
+      timezone: "America/Chicago"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
