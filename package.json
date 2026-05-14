@@ -73,7 +73,7 @@
   },
   "devDependencies": {
     "@commitlint/cli": "^20.4.3",
-    "@commitlint/config-conventional": "^20.5.0",
+    "@commitlint/config-conventional": "^20.5.3",
     "@stryker-mutator/core": "^9.6.0",
     "@stryker-mutator/jest-runner": "^9.6.1",
     "@types/express": "^5.0.6",
