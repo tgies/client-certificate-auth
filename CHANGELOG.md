@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed (BREAKING)
+
+- **Validation callbacks must return or resolve exactly `true`** — previously the middleware authorized on any truthy value, so callbacks returning a non-empty string, a number, an object, or a thenable resolving to a truthy non-boolean would silently pass authentication. Both the ESM and CJS paths now require strict `=== true`; all other values (including non-`true` truthy values and `Promise<truthy-non-boolean>`) cause a 401. The fix also closes a fail-open with non-native thenables: `instanceof Promise` is replaced with a duck-typed `isThenable` check, so `{ then(resolve) { resolve(false); } }` correctly rejects rather than being passed through as a truthy object. Migration: callbacks that previously returned ad-hoc truthy values (e.g., `return cert.subject.CN`) must now explicitly return `true`/`false`. The helper composition functions in `lib/helpers.js` (`allOf`, `anyOf`) already enforced strict-true, so middleware behavior is now consistent with helpers.
+
+### Tests
+
+- Inverted the three truthy-non-boolean tests in `test-unit-clientCertificateAuth.js` to assert 401 rejection.
+- Added thenable coverage for both ESM and CJS: a non-native thenable resolving to `true` authorizes, resolving to `false` rejects, resolving to a truthy non-boolean rejects.
+
 ## [1.3.4] - 2026-04-30
 
 ### Fixed

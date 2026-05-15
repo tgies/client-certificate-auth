@@ -94,7 +94,7 @@ export interface ClientCertificateAuthOptions {
 export type ValidationCallback = (
     cert: PeerCertificate | DetailedPeerCertificate,
     req?: ClientCertRequest
-) => boolean | Promise<boolean>;
+) => boolean | PromiseLike<boolean>;
 
 export type Middleware = (
     req: ClientCertRequest,

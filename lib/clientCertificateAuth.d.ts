@@ -123,7 +123,7 @@ export interface ClientCertificateAuthOptions {
 export type ValidationCallback = (
     cert: PeerCertificate | DetailedPeerCertificate,
     req?: ClientCertRequest
-) => boolean | Promise<boolean>;
+) => boolean | PromiseLike<boolean>;
 
 export type Middleware = (
     req: ClientCertRequest,
@@ -135,7 +135,8 @@ export type Middleware = (
  * Express/Connect middleware for client SSL certificate authentication.
  *
  * @param callback - Validation function that receives the client certificate
- *   and returns true/false (sync) or `Promise<boolean>` (async).
+ *   and returns true/false (sync) or `PromiseLike<boolean>` (async,
+ *   including native Promises and any thenable resolving to a boolean).
  * @param options - Configuration options
  * @returns Express middleware function
  *

@@ -3,7 +3,7 @@
  * This file is not executed, only type-checked by `npm run typecheck`.
  */
 import clientCertificateAuth from '../lib/clientCertificateAuth.js';
-import type { ClientCertRequest, HttpError, ClientCertificateAuthOptions } from '../lib/clientCertificateAuth.js';
+import type { ClientCertRequest, HttpError, ClientCertificateAuthOptions, ValidationCallback } from '../lib/clientCertificateAuth.js';
 
 // Test 1: Error.status augmentation works on plain Error objects
 const plainError = new Error('test');
@@ -50,6 +50,19 @@ const _reqMiddleware = clientCertificateAuth((cert, req) => {
     }
     return cert.subject.CN === 'admin';
 });
+
+// Test 7a: callback may return a PromiseLike<boolean> (any thenable, not just native Promise)
+const _promiseLikeCallback: ValidationCallback = (cert) => {
+    const thenable: PromiseLike<boolean> = {
+        then(onfulfilled) {
+            return onfulfilled
+                ? (onfulfilled(cert.subject.CN === 'admin') as PromiseLike<never>)
+                : (undefined as unknown as PromiseLike<never>);
+        },
+    };
+    return thenable;
+};
+const _promiseLikeMiddleware = clientCertificateAuth(_promiseLikeCallback);
 
 // Test 8: CJS load() returns function with full ESM options
 import type cjsAuth from '../lib/clientCertificateAuth.cjs';
