@@ -722,6 +722,60 @@ describe('clientCertificateAuth', () => {
       });
     });
 
+    describe('constructor option validation', () => {
+      it('should throw when certificateSource is unknown', () => {
+        assert.throws(
+          () => clientCertificateAuth(() => true, { certificateSource: 'aws-alp' }),
+          {
+            name: 'Error',
+            message: /unknown certificateSource 'aws-alp'/
+          }
+        );
+      });
+
+      it('should throw when headerEncoding is unknown', () => {
+        assert.throws(
+          () => clientCertificateAuth(() => true, {
+            certificateHeader: 'X-Cert',
+            headerEncoding: 'url-perm'
+          }),
+          {
+            name: 'Error',
+            message: /unknown headerEncoding 'url-perm'/
+          }
+        );
+      });
+
+      it('should throw when certificateHeader is set without headerEncoding or preset', () => {
+        assert.throws(
+          () => clientCertificateAuth(() => true, { certificateHeader: 'X-Cert' }),
+          {
+            name: 'Error',
+            message: /certificateHeader requires headerEncoding/
+          }
+        );
+      });
+
+      it('should not throw when certificateHeader pairs with a preset (encoding from preset)', () => {
+        assert.doesNotThrow(
+          () => clientCertificateAuth(() => true, {
+            certificateSource: 'aws-alb',
+            certificateHeader: 'X-Override'
+          })
+        );
+      });
+
+      it('should not throw when certificateSource alone is valid', () => {
+        assert.doesNotThrow(
+          () => clientCertificateAuth(() => true, { certificateSource: 'envoy' })
+        );
+      });
+
+      it('should not throw when no header options are set (socket-only)', () => {
+        assert.doesNotThrow(() => clientCertificateAuth(() => true));
+      });
+    });
+
     describe('error message content', () => {
       it('should include "unknown" when authorizationError is missing', done => {
         const reqNoError = {
