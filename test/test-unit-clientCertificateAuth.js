@@ -733,6 +733,19 @@ describe('clientCertificateAuth', () => {
         );
       });
 
+      it('should throw when certificateSource is an inherited Object.prototype key', () => {
+        for (const key of ['toString', 'constructor', 'hasOwnProperty', '__proto__']) {
+          assert.throws(
+            () => clientCertificateAuth(() => true, { certificateSource: key }),
+            {
+              name: 'Error',
+              message: new RegExp(`unknown certificateSource '${key}'`)
+            },
+            `${key} should be rejected as an inherited prototype key`
+          );
+        }
+      });
+
       it('should throw when headerEncoding is unknown', () => {
         assert.throws(
           () => clientCertificateAuth(() => true, {
