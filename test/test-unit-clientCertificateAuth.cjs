@@ -189,6 +189,32 @@ describe('clientCertificateAuth (CommonJS)', () => {
                 });
             });
 
+            it('should call next() if callback returns a function-valued thenable resolving to true', done => {
+                const middleware = clientCertificateAuth(() => {
+                    const fn = function () {};
+                    fn.then = (resolve) => resolve(true);
+                    return fn;
+                });
+                middleware(mockGoodReq, mockRes, (err) => {
+                    assert.equal(err, undefined);
+                    done();
+                });
+            });
+
+            it('should pass 401 error to next() if callback returns a function-valued thenable resolving to false', done => {
+                const middleware = clientCertificateAuth(() => {
+                    const fn = function () {};
+                    fn.then = (resolve) => resolve(false);
+                    return fn;
+                });
+                middleware(mockGoodReq, mockRes, (err) => {
+                    assert.ok(err instanceof Error);
+                    assert.equal(err.status, 401);
+                    assert.equal(err.message, 'Unauthorized');
+                    done();
+                });
+            });
+
             it('should pass error to next() if callback throws', done => {
                 const middleware = clientCertificateAuth(() => {
                     throw new Error('Validation failed');
