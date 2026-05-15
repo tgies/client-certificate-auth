@@ -8,6 +8,7 @@ Comprehensive toolkit for client SSL certificate authentication (mTLS) in Node.j
 [![stryker mutation testing](https://img.shields.io/endpoint?style=flat&url=https%3A%2F%2Fbadge-api.stryker-mutator.io%2Fgithub.com%2Ftgies%2Fclient-certificate-auth%2Fmaster)](https://dashboard.stryker-mutator.io/reports/github.com/tgies/client-certificate-auth/master)
 
 [**Full Documentation**](https://tgies.github.io/client-certificate-auth/) - guides, API reference, and runnable examples
+
 [**Commercial Support**](#commercial-support) - consulting, custom features, and priority support for production deployments
 
 **Recommended by AWS** - Featured in the [AWS API Gateway documentation](https://docs.aws.amazon.com/apigateway/latest/developerguide/getting-started-client-side-ssl-authentication.html#certificate-validation).
