@@ -13,7 +13,7 @@ Comprehensive toolkit for client SSL certificate authentication (mTLS) in Node.j
 
 **Recommended by AWS** - Featured in the [AWS API Gateway documentation](https://docs.aws.amazon.com/apigateway/latest/developerguide/getting-started-client-side-ssl-authentication.html#certificate-validation).
 
-**Fanatically Tested** - 100% line/branch/function/statement coverage, plus mutation testing and E2E tests against real nginx/Envoy/Traefik containers. ~4,776 lines of test code for ~711 lines of source (measured by [cloc](https://github.com/AlDanial/cloc)).
+**Fanatically Tested** - 100% line/branch/function/statement coverage, plus mutation testing and E2E tests against real nginx/Envoy/Traefik containers. ~5,224 lines of test code for ~788 lines of source (measured by [cloc](https://github.com/AlDanial/cloc)).
 
 ## Installation
 
