@@ -5,21 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.0.0] - 2026-05-15
 
 ### Changed (BREAKING)
 
-- **Validation callbacks must return or resolve exactly `true`** — previously the middleware authorized on any truthy value, so callbacks returning a non-empty string, a number, an object, or a thenable resolving to a truthy non-boolean would silently pass authentication. Both the ESM and CJS paths now require strict `=== true`; all other values (including non-`true` truthy values and `Promise<truthy-non-boolean>`) cause a 401. The fix also closes a fail-open with non-native thenables: `instanceof Promise` is replaced with a duck-typed `isThenable` check, so `{ then(resolve) { resolve(false); } }` correctly rejects rather than being passed through as a truthy object. Migration: callbacks that previously returned ad-hoc truthy values (e.g., `return cert.subject.CN`) must now explicitly return `true`/`false`. The helper composition functions in `lib/helpers.js` (`allOf`, `anyOf`) already enforced strict-true, so middleware behavior is now consistent with helpers.
+- **Validation callbacks must return or resolve exactly `true`** ([#105](https://github.com/tgies/client-certificate-auth/pull/105)) — previously the middleware authorized on any truthy value, so callbacks returning a non-empty string, a number, an object, or a thenable resolving to a truthy non-boolean would silently pass authentication. Both the ESM and CJS paths now require strict `=== true`; all other values (including non-`true` truthy values and `Promise<truthy-non-boolean>`) cause a 401. The fix also closes a fail-open with non-native thenables: `instanceof Promise` is replaced with a duck-typed `isThenable` check (matching Promises/A+ §1.2, an object or function with a callable `.then`), so both `{ then(resolve) { resolve(false); } }` and function-valued thenables correctly reject rather than being passed through as truthy values. Migration: callbacks that previously returned ad-hoc truthy values (e.g., `return cert.subject.CN`) must now explicitly return `true`/`false`. The helper composition functions in `lib/helpers.js` (`allOf`, `anyOf`) already enforced strict-true, so middleware behavior is now consistent with helpers.
 
 ### Added
 
-- **Constructor-time validation of header options** — `clientCertificateAuth()` now throws at construction when `certificateSource` is not a known preset, when `headerEncoding` is not a documented value, or when `certificateHeader` is set without `headerEncoding` (and no `certificateSource` preset to supply one). Mirrors the existing `verifyHeader`/`verifyValue` pairing check. Typos that previously caused silent header-extraction failure (falling through to socket extraction when `fallbackToSocket: true`, or returning 401 otherwise) now surface as a clear error at app startup.
+- **Constructor-time validation of header options** ([#106](https://github.com/tgies/client-certificate-auth/pull/106)) — `clientCertificateAuth()` now throws at construction when `certificateSource` is not a known preset, when `headerEncoding` is not a documented value, or when `certificateHeader` is set without `headerEncoding` (and no `certificateSource` preset to supply one). Uses `Object.hasOwn` for the preset allow-list so inherited `Object.prototype` keys (`toString`, `constructor`, etc.) are also rejected. Mirrors the existing `verifyHeader`/`verifyValue` pairing check. Typos that previously caused silent header-extraction failure (falling through to socket extraction when `fallbackToSocket: true`, or returning 401 otherwise) now surface as a clear error at app startup.
+
+### Types
+
+- **`ValidationCallback` widened to `PromiseLike<boolean>`** ([#105](https://github.com/tgies/client-certificate-auth/pull/105)) — both `.d.ts` and `.d.cts` change the async return type from `Promise<boolean>` to `PromiseLike<boolean>` to match the now-permissive runtime. TypeScript consumers returning a `PromiseLike<boolean>` or any custom/third-party thenable no longer need a cast. Native `Promise` extends `PromiseLike`, so existing code that returned `Promise<boolean>` continues to typecheck unchanged.
 
 ### Tests
 
 - Inverted the three truthy-non-boolean tests in `test-unit-clientCertificateAuth.js` to assert 401 rejection.
-- Added thenable coverage for both ESM and CJS: a non-native thenable resolving to `true` authorizes, resolving to `false` rejects, resolving to a truthy non-boolean rejects.
-- Added a `constructor option validation` describe block covering unknown `certificateSource`, unknown `headerEncoding`, and `certificateHeader` without an encoding source.
+- Added thenable coverage for both ESM and CJS: an object thenable resolving to `true` authorizes, resolving to `false` rejects, resolving to a truthy non-boolean rejects.
+- Added function-valued thenable coverage (both true and false branches) in both ESM and CJS.
+- Added a `constructor option validation` describe block covering unknown `certificateSource`, unknown `headerEncoding`, `certificateHeader` without an encoding source, and inherited `Object.prototype` key rejection (`toString`, `constructor`, `hasOwnProperty`, `__proto__`).
+- Added a TypeScript type test that returns a plain `PromiseLike<boolean>` (not a native `Promise`) to lock in the widened contract.
 
 ## [1.3.4] - 2026-04-30
 
