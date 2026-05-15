@@ -113,26 +113,59 @@ describe('clientCertificateAuth', () => {
         }
       );
 
-      it('should call next() if callback returns a truthy non-boolean value (string)', done => {
+      it('should pass 401 error to next() if callback returns a truthy non-boolean value (string)', done => {
         const middleware = clientCertificateAuth(() => 'yes');
         middleware(mockGoodReq, mockRes, (err) => {
-          assert.equal(err, undefined);
+          assert.ok(err instanceof Error);
+          assert.equal(err.status, 401);
+          assert.equal(err.message, 'Unauthorized');
           done();
         });
       });
 
-      it('should call next() if callback returns a truthy non-boolean value (number)', done => {
+      it('should pass 401 error to next() if callback returns a truthy non-boolean value (number)', done => {
         const middleware = clientCertificateAuth(() => 1);
         middleware(mockGoodReq, mockRes, (err) => {
+          assert.ok(err instanceof Error);
+          assert.equal(err.status, 401);
+          assert.equal(err.message, 'Unauthorized');
+          done();
+        });
+      });
+
+      it('should pass 401 error to next() if async callback resolves with a truthy non-boolean value', done => {
+        const middleware = clientCertificateAuth(async () => 'authorized');
+        middleware(mockGoodReq, mockRes, (err) => {
+          assert.ok(err instanceof Error);
+          assert.equal(err.status, 401);
+          assert.equal(err.message, 'Unauthorized');
+          done();
+        });
+      });
+
+      it('should call next() if callback returns a non-native thenable resolving to true', done => {
+        const middleware = clientCertificateAuth(() => ({ then(resolve) { resolve(true); } }));
+        middleware(mockGoodReq, mockRes, (err) => {
           assert.equal(err, undefined);
           done();
         });
       });
 
-      it('should call next() if async callback resolves with a truthy non-boolean value', done => {
-        const middleware = clientCertificateAuth(async () => 'authorized');
+      it('should pass 401 error to next() if callback returns a non-native thenable resolving to false', done => {
+        const middleware = clientCertificateAuth(() => ({ then(resolve) { resolve(false); } }));
         middleware(mockGoodReq, mockRes, (err) => {
-          assert.equal(err, undefined);
+          assert.ok(err instanceof Error);
+          assert.equal(err.status, 401);
+          assert.equal(err.message, 'Unauthorized');
+          done();
+        });
+      });
+
+      it('should pass 401 error to next() if callback returns a non-native thenable resolving to a truthy non-boolean', done => {
+        const middleware = clientCertificateAuth(() => ({ then(resolve) { resolve('yes'); } }));
+        middleware(mockGoodReq, mockRes, (err) => {
+          assert.ok(err instanceof Error);
+          assert.equal(err.status, 401);
           done();
         });
       });
