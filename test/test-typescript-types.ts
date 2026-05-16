@@ -136,6 +136,42 @@ async function testCjsExtractorLoad() {
     );
 }
 
+// Test 17: Express integration - app.use() accepts the middleware, and
+// ClientCertRequest is usable as a route handler request type.
+// Regression coverage for the v2.0.0 type compatibility gap where
+// ClientCertRequest required a TLSSocket and Express's Socket-typed
+// req.socket failed overload resolution.
+import express from 'express';
+function testExpressIntegration() {
+    const app = express();
+
+    app.use(clientCertificateAuth((cert) => cert.subject.CN === 'admin'));
+
+    app.use(clientCertificateAuth((cert) => cert.subject.CN === 'admin', {
+        certificateSource: 'aws-alb',
+    }));
+
+    app.get('/whoami', (req: ClientCertRequest, res) => {
+        const _cn = req.clientCertificate?.subject?.CN;
+        void _cn;
+        res.json({});
+    });
+}
+
+// Test 18: Express integration via the CJS sync default export.
+function testExpressIntegrationCjsSync() {
+    const app = express();
+    const cjs = null as unknown as typeof cjsAuth;
+    app.use(cjs((cert) => cert.subject.CN === 'admin'));
+}
+
+// Test 19: Express integration via the CJS async load() entry.
+async function testExpressIntegrationCjsLoad() {
+    const app = express();
+    const cjs = await (null as unknown as typeof cjsAuth).load();
+    app.use(cjs((cert) => cert.subject.CN === 'admin'));
+}
+
 // Suppress unused variable warnings - this file is for type-checking only
 void _statusCode;
 void _syncMiddleware;
@@ -152,3 +188,6 @@ void checkInvalidProperty;
 void testCjsHelpersLoad;
 void testCjsParsersLoad;
 void testCjsExtractorLoad;
+void testExpressIntegration;
+void testExpressIntegrationCjsSync;
+void testExpressIntegrationCjsLoad;

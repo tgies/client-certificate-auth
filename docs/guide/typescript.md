@@ -26,7 +26,7 @@ app.use(clientCertificateAuth(checkAuth, {
 }));
 ```
 
-The `ClientCertRequest` type extends Express's `Request` with the `clientCertificate` property. Use it in downstream route handlers to get type-safe access to the attached certificate.
+The `ClientCertRequest` type extends Node's `http.IncomingMessage` and is structurally compatible with Express's `Request` and other Connect-style request types. It adds the optional `clientCertificate` property the middleware attaches after authentication. Use it in downstream route handlers to get type-safe access to the attached certificate. The package does not depend on `@types/express`, so consumers using bare Node or non-Express Connect-style frameworks can use these types without pulling in Express's types.
 
 For complete type definitions, see the [API reference](/api/clientCertificateAuth/).
 

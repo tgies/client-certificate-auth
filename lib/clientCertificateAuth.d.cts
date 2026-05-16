@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'http';
-import type { TLSSocket, PeerCertificate, DetailedPeerCertificate } from 'tls';
+import type { Socket } from 'net';
+import type { PeerCertificate, DetailedPeerCertificate } from 'tls';
 import type {
     ClientCertificateAuthOptions as EsmOptions,
     ValidationCallback as EsmValidationCallback,
@@ -24,17 +25,31 @@ export interface HttpError extends Error {
 }
 
 /**
- * Extended request object with TLS socket and optional Express properties.
+ * Extended request object compatible with Node's `http.IncomingMessage`,
+ * Express's `Request`, and Connect-style request objects.
+ *
+ * The socket is typed as the broader `net.Socket` with TLS-specific fields
+ * marked optional so the middleware accepts requests from any of those
+ * frameworks without a framework-specific type dependency. The runtime
+ * guards in the middleware check for `getPeerCertificate` before calling it.
  */
 export interface ClientCertRequest extends IncomingMessage {
-    /** True if connection is over HTTPS (Express-specific) */
+    /** True if connection is over HTTPS (Express-specific, optional). */
     secure?: boolean;
-    /** TLS socket with authorization properties */
-    socket: TLSSocket & {
-        /** Whether the client certificate was authorized at the TLS layer */
+    /**
+     * Underlying socket. Typed as the broader `net.Socket` so this interface
+     * is satisfied by both Node's `IncomingMessage.socket` and Express's
+     * `Request.socket`. TLS-specific fields (`authorized`, `authorizationError`,
+     * `getPeerCertificate`) are present at runtime when the request arrived
+     * over TLS and are detected by the middleware via runtime feature checks.
+     */
+    socket: Socket & {
+        /** Whether the client certificate was authorized at the TLS layer. */
         authorized?: boolean;
-        /** Error message if authorization failed */
-        authorizationError?: string;
+        /** Error from TLS authorization, if any. */
+        authorizationError?: Error | string;
+        /** TLS getPeerCertificate, present on TLSSocket only. */
+        getPeerCertificate?: (detailed?: boolean) => PeerCertificate | DetailedPeerCertificate;
     };
     /**
      * Client certificate attached by clientCertificateAuth middleware.
