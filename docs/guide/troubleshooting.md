@@ -85,3 +85,12 @@ See the [WebSocket Support](./websocket) page for complete examples with both `w
 This package is an ES module with a CJS compatibility wrapper. The sync `require()` entry only supports socket-based mTLS; reverse proxy options require the async `load()` function. Subpath exports (`/helpers`, `/extractor`, `/parsers`) also need `load()` in CJS.
 
 For a full breakdown of what's available in each mode, see the [TypeScript & CJS](./typescript) page.
+
+## Upgrading from 1.x
+
+v2.0.0 introduced two behavior changes:
+
+- **Validation callbacks must return exactly `true`.** Previously any truthy value (`'admin'`, `1`, an object) authorized; now only `true` (or a `Promise`/thenable resolving to `true`) does. Callbacks that returned ad-hoc truthy values (e.g., `return cert.subject.CN`) must be rewritten to explicit `return true` / `return false`.
+- **Header options are validated at construction.** Typos like `certificateSource: 'aws-alp'` now throw at app startup instead of failing at request time.
+
+See the [CHANGELOG](https://github.com/tgies/client-certificate-auth/blob/master/CHANGELOG.md) for the full v2.0.0 entry.

@@ -122,6 +122,8 @@ app.use(clientCertificateAuth(checkAuth, {
 }));
 ```
 
+The `verifyValue` comparison is exact (case-sensitive, no whitespace trimming); set it to the exact string your proxy emits.
+
 Example nginx configuration:
 ```nginx
 # Strip any existing headers from clients
