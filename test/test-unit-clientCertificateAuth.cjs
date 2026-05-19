@@ -347,6 +347,34 @@ describe('clientCertificateAuth (CommonJS)', () => {
                     done();
                 });
             });
+
+            it('should pass 500 error to next() when getPeerCertificate is missing', done => {
+                const reqNoTlsMethod = {
+                    ...mockGoodReq,
+                    socket: { authorized: true }
+                };
+                const middleware = clientCertificateAuth(() => true);
+                middleware(reqNoTlsMethod, mockRes, (err) => {
+                    assert.ok(err instanceof Error);
+                    assert.equal(err.status, 500);
+                    assert.ok(err.message.includes('could not be retrieved'));
+                    done();
+                });
+            });
+
+            it('should pass 500 error to next() when getPeerCertificate is not a function', done => {
+                const reqBadTlsMethod = {
+                    ...mockGoodReq,
+                    socket: { authorized: true, getPeerCertificate: 'not a function' }
+                };
+                const middleware = clientCertificateAuth(() => true);
+                middleware(reqBadTlsMethod, mockRes, (err) => {
+                    assert.ok(err instanceof Error);
+                    assert.equal(err.status, 500);
+                    assert.ok(err.message.includes('could not be retrieved'));
+                    done();
+                });
+            });
         });
 
         describe('error message content', () => {
@@ -680,6 +708,27 @@ describe('clientCertificateAuth (CommonJS)', () => {
                 });
 
                 middleware(reqEmptyCert, mockRes, () => {
+                    setImmediate(() => {
+                        assert.ok(hookArgs, 'onRejected should have been called');
+                        assert.equal(hookArgs.cert, null);
+                        assert.equal(hookArgs.reason, 'certificate_not_retrievable');
+                        done();
+                    });
+                });
+            });
+
+            it('should call onRejected when getPeerCertificate is missing', done => {
+                let hookArgs = null;
+                const reqNoTlsMethod = {
+                    ...mockGoodReq,
+                    socket: { authorized: true }
+                };
+
+                const middleware = clientCertificateAuth(() => true, {
+                    onRejected: (cert, _req, reason) => { hookArgs = { cert, reason }; }
+                });
+
+                middleware(reqNoTlsMethod, mockRes, () => {
                     setImmediate(() => {
                         assert.ok(hookArgs, 'onRejected should have been called');
                         assert.equal(hookArgs.cert, null);
