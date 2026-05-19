@@ -106,6 +106,7 @@ export interface ClientCertificateAuthOptions {
     /**
      * Expected value indicating successful certificate verification.
      * If verifyHeader is set, requests are rejected unless the header matches this value.
+     * Comparison is exact (case-sensitive, no whitespace trimming).
      * Example: 'SUCCESS' for nginx.
      */
     verifyValue?: string;

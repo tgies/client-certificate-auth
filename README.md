@@ -815,6 +815,15 @@ The E2E tests spin up real reverse proxies, generate fresh certificates, and ver
 - **When using header-based auth**, ensure your proxy strips certificate headers from external requests
 - Use `verifyHeader`/`verifyValue` as defense-in-depth when using header-based authentication
 
+## Upgrading from 1.x
+
+v2.0.0 introduced two behavior changes:
+
+- **Validation callbacks must return exactly `true`.** Previously any truthy value (`'admin'`, `1`, an object) authorized; now only `true` (or a `Promise`/thenable resolving to `true`) does. Callbacks that returned ad-hoc truthy values (e.g., `return cert.subject.CN`) must be rewritten to explicit `return true` / `return false`.
+- **Header options are validated at construction.** Typos like `certificateSource: 'aws-alp'` now throw at app startup instead of failing at request time.
+
+See the [CHANGELOG](./CHANGELOG.md) for the full v2.0.0 entry.
+
 ## Troubleshooting
 
 ### `DEPTH_ZERO_SELF_SIGNED_CERT` error
