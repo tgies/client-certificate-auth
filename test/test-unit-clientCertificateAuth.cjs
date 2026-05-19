@@ -240,7 +240,8 @@ describe('clientCertificateAuth (CommonJS)', () => {
                         assert.equal(callbackCalled, false);
                         assert.ok(err instanceof Error);
                         assert.equal(err.status, 401);
-                        assert.ok(err.message.includes('CERT_UNTRUSTED'));
+                        assert.equal(err.message, 'Unauthorized: Client certificate required');
+                        assert.ok(!err.message.includes('CERT_UNTRUSTED'));
                         done();
                     });
                 }
@@ -264,7 +265,7 @@ describe('clientCertificateAuth (CommonJS)', () => {
                 middleware(reqNoSocket, mockRes, (err) => {
                     assert.ok(err instanceof Error);
                     assert.equal(err.status, 401);
-                    assert.ok(err.message.includes('unknown'));
+                    assert.equal(err.message, 'Unauthorized: Client certificate required');
                     done();
                 });
             });
@@ -286,25 +287,22 @@ describe('clientCertificateAuth (CommonJS)', () => {
             });
         });
 
-        describe('error message content', () => {
-            it('should include "unknown" when authorizationError is missing', done => {
+        describe('client-facing error sanitization', () => {
+            it('returns a generic message when authorizationError is absent', done => {
                 const reqNoError = {
                     secure: true,
-                    socket: {
-                        authorized: false,
-                        getPeerCertificate: getMockPeerCertificate
-                    },
+                    socket: { authorized: false, getPeerCertificate: getMockPeerCertificate },
                     headers: {}
                 };
                 const middleware = clientCertificateAuth(() => true);
                 middleware(reqNoError, mockRes, (err) => {
                     assert.ok(err instanceof Error);
-                    assert.ok(err.message.includes('unknown'), `Expected "unknown" in: ${err.message}`);
+                    assert.equal(err.message, 'Unauthorized: Client certificate required');
                     done();
                 });
             });
 
-            it('should include the actual authorizationError when present', done => {
+            it('does not leak authorizationError into the client message when present', done => {
                 const reqWithError = {
                     secure: true,
                     socket: {
@@ -317,8 +315,8 @@ describe('clientCertificateAuth (CommonJS)', () => {
                 const middleware = clientCertificateAuth(() => true);
                 middleware(reqWithError, mockRes, (err) => {
                     assert.ok(err instanceof Error);
-                    assert.ok(err.message.includes('CERT_REVOKED'), `Expected "CERT_REVOKED" in: ${err.message}`);
-                    assert.ok(!err.message.includes('unknown'), 'Should not contain "unknown"');
+                    assert.equal(err.message, 'Unauthorized: Client certificate required');
+                    assert.ok(!err.message.includes('CERT_REVOKED'));
                     done();
                 });
             });
@@ -430,6 +428,7 @@ describe('clientCertificateAuth (CommonJS)', () => {
                         assert.ok(hookArgs, 'onRejected should have been called');
                         assert.equal(hookArgs.cert, null);
                         assert.equal(hookArgs.reason, 'socket_not_authorized');
+                        assert.equal(hookArgs.req.socket.authorizationError, 'CERT_UNTRUSTED');
                         done();
                     });
                 });
