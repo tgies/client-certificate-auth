@@ -58,6 +58,13 @@ export function extractClientCertificate(req: {
         getPeerCertificate?: (detailed: boolean) => import("tls").PeerCertificate;
     };
 }, options?: ExtractorOptions): ExtractionResult;
+/**
+ * Validate options shared by `extractClientCertificate` and the middleware constructor.
+ * Throws on unknown `certificateSource`, unknown `headerEncoding`,
+ * `certificateHeader` without an encoding source, or only one of `verifyHeader`/`verifyValue`.
+ * Omitted or `undefined` options are treated as the empty object; explicit `null` throws.
+ */
+export function validateExtractorOptions(options?: ExtractorOptions): void;
 export type ExtractionResult = {
     /**
      * - Whether extraction succeeded
