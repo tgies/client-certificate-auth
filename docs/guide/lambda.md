@@ -32,10 +32,10 @@ API Gateway sends client certificate information at one of two paths depending o
 
 | API Type | Payload Format | Path |
 |----------|----------------|------|
-| HTTP API | v2.0 | `event.requestContext.authentication.clientCert` |
+| HTTP API | v2.0 (default) | `event.requestContext.authentication.clientCert` |
 | REST API | v1.0 | `event.requestContext.identity.clientCert` |
 
-The helper reads both paths; if both are present, v2.0 takes precedence.
+HTTP API defaults to v2.0 but can be configured for v1.0, in which case the cert path matches the REST API (`identity.clientCert`). The helper reads both paths; if both are present, v2.0 takes precedence.
 
 The `clientCert` object always contains:
 
@@ -45,7 +45,10 @@ The `clientCert` object always contains:
   subjectDN: string,
   issuerDN: string,
   serialNumber: string,
-  validity: { notBefore: string, notAfter: string }
+  validity: {
+    notBefore: string,     // OpenSSL-style, e.g. "May 28 12:30:02 2019 GMT"
+    notAfter: string
+  }
 }
 ```
 
