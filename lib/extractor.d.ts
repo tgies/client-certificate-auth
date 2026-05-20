@@ -12,8 +12,9 @@
  */
 /**
  * @typedef {Object} ExtractorOptions
- * @property {'aws-alb' | 'envoy' | 'cloudflare' | 'traefik'} [certificateSource] - Preset configuration
+ * @property {'aws-alb' | 'aws-alb-verify' | 'azure-app-service' | 'cloudflare' | 'cloudflare-rfc9440' | 'envoy' | 'traefik'} [certificateSource] - Preset configuration
  * @property {string} [certificateHeader] - Custom header name
+ * @property {string} [chainHeader] - Optional second header carrying the certificate chain
  * @property {'url-pem' | 'url-pem-aws' | 'xfcc' | 'base64-der' | 'rfc9440'} [headerEncoding] - Header encoding
  * @property {boolean} [fallbackToSocket=false] - Try socket if header extraction fails
  * @property {boolean} [includeChain=false] - Include issuerCertificate chain
@@ -89,11 +90,15 @@ export type ExtractorOptions = {
     /**
      * - Preset configuration
      */
-    certificateSource?: "aws-alb" | "envoy" | "cloudflare" | "traefik";
+    certificateSource?: "aws-alb" | "aws-alb-verify" | "azure-app-service" | "cloudflare" | "cloudflare-rfc9440" | "envoy" | "traefik";
     /**
      * - Custom header name
      */
     certificateHeader?: string;
+    /**
+     * - Optional second header carrying the certificate chain
+     */
+    chainHeader?: string;
     /**
      * - Header encoding
      */

@@ -1,5 +1,23 @@
 import assert from 'node:assert/strict';
 import { extractClientCertificate, validateExtractorOptions } from '../lib/extractor.js';
+import { pemToDer } from './test-helpers.js';
+
+/**
+ * Encode a DER-encoded certificate as RFC 9440 single-cert header value:
+ * `:base64:`. Cloudflare and other RFC 9440 implementations emit this on
+ * the Client-Cert header.
+ */
+function encodeAsRfc9440(derBuffer) {
+  return ':' + derBuffer.toString('base64') + ':';
+}
+
+/**
+ * Encode a list of DER buffers as RFC 9440 structured-field list of
+ * `:base64:` items, comma-separated. Used for Client-Cert-Chain.
+ */
+function encodeAsRfc9440List(derBuffers) {
+  return derBuffers.map(encodeAsRfc9440).join(', ');
+}
 
 // Mock certificate for socket tests
 const getMockPeerCertificate = () => ({
@@ -116,6 +134,35 @@ describe('extractClientCertificate', () => {
       assert.throws(
         () => extractClientCertificate(req, { certificateHeader: 'X-Cert' }),
         { name: 'Error', message: /certificateHeader requires headerEncoding/ }
+      );
+    });
+
+    it('should throw when chainHeader is set without a leaf header source', () => {
+      const req = { headers: {}, socket: { authorized: false } };
+      assert.throws(
+        () => extractClientCertificate(req, { chainHeader: 'X-Cert-Chain' }),
+        { name: 'Error', message: /chainHeader requires certificateSource or certificateHeader/ }
+      );
+    });
+
+    it('should not throw when chainHeader is paired with certificateHeader and headerEncoding', () => {
+      const req = { headers: {}, socket: { authorized: false } };
+      assert.doesNotThrow(() =>
+        extractClientCertificate(req, {
+          certificateHeader: 'X-Cert',
+          chainHeader: 'X-Cert-Chain',
+          headerEncoding: 'rfc9440',
+        })
+      );
+    });
+
+    it('should not throw when chainHeader is paired with certificateSource', () => {
+      const req = { headers: {}, socket: { authorized: false } };
+      assert.doesNotThrow(() =>
+        extractClientCertificate(req, {
+          certificateSource: 'cloudflare-rfc9440',
+          chainHeader: 'X-Custom-Chain',
+        })
       );
     });
 
@@ -360,6 +407,335 @@ describe('extractClientCertificate', () => {
         // Should fail due to invalid cert, but shows header was checked
         assert.strictEqual(result.success, false);
         assert.strictEqual(result.reason, 'header_missing_or_malformed');
+      });
+    });
+
+    describe('AWS ALB verify preset', () => {
+      it('should extract certificate from x-amzn-mtls-clientcert-leaf header', () => {
+        const encodedCert = encodeURIComponent(testPem);
+        const req = {
+          headers: {
+            'x-amzn-mtls-clientcert-leaf': encodedCert,
+          },
+          socket: { authorized: false },
+        };
+
+        const result = extractClientCertificate(req, {
+          certificateSource: 'aws-alb-verify',
+        });
+
+        assert.strictEqual(result.success, true);
+        assert.ok(result.certificate);
+        assert.strictEqual(result.certificate.subject.CN, 'client.example.com');
+      });
+
+      it('should not read x-amzn-mtls-clientcert (passthrough header) when in verify preset', () => {
+        const encodedCert = encodeURIComponent(testPem);
+        const req = {
+          headers: {
+            'x-amzn-mtls-clientcert': encodedCert,
+          },
+          socket: { authorized: false },
+        };
+
+        const result = extractClientCertificate(req, {
+          certificateSource: 'aws-alb-verify',
+        });
+
+        assert.strictEqual(result.success, false);
+        assert.strictEqual(result.reason, 'header_missing_or_malformed');
+      });
+    });
+
+    describe('Azure App Service preset', () => {
+      it('should extract certificate from x-arr-clientcert header (base64 DER)', () => {
+        // Azure App Service forwards bare base64-encoded DER (the body of a
+        // PEM cert without the BEGIN/END delimiters). The base64-der parser
+        // accepts that directly.
+        const derBuffer = pemToDer(testPem);
+        const headerValue = derBuffer.toString('base64');
+        const req = {
+          headers: {
+            'x-arr-clientcert': headerValue,
+          },
+          socket: { authorized: false },
+        };
+
+        const result = extractClientCertificate(req, {
+          certificateSource: 'azure-app-service',
+        });
+
+        assert.strictEqual(result.success, true);
+        assert.ok(result.certificate);
+        assert.strictEqual(result.certificate.subject.CN, 'client.example.com');
+      });
+
+      it('should return error when x-arr-clientcert is missing', () => {
+        const req = {
+          headers: {},
+          socket: { authorized: false },
+        };
+
+        const result = extractClientCertificate(req, {
+          certificateSource: 'azure-app-service',
+        });
+
+        assert.strictEqual(result.success, false);
+        assert.strictEqual(result.reason, 'header_missing_or_malformed');
+      });
+    });
+
+    describe('Cloudflare RFC 9440 preset', () => {
+      it('should extract certificate from Client-Cert header (RFC 9440)', () => {
+        const derBuffer = pemToDer(testPem);
+        const req = {
+          headers: {
+            'client-cert': encodeAsRfc9440(derBuffer),
+          },
+          socket: { authorized: false },
+        };
+
+        const result = extractClientCertificate(req, {
+          certificateSource: 'cloudflare-rfc9440',
+        });
+
+        assert.strictEqual(result.success, true);
+        assert.ok(result.certificate);
+        assert.strictEqual(result.certificate.subject.CN, 'client.example.com');
+      });
+
+      it('should link chain from Client-Cert-Chain header when includeChain is true', async () => {
+        const selfsigned = (await import('selfsigned')).default;
+        const intermediate = await selfsigned.generate(
+          [{ name: 'commonName', value: 'Intermediate CA' }],
+          { algorithm: 'sha256', keySize: 2048, days: 1 }
+        );
+        const root = await selfsigned.generate(
+          [{ name: 'commonName', value: 'Root CA' }],
+          { algorithm: 'sha256', keySize: 2048, days: 1 }
+        );
+
+        const leafDer = pemToDer(testPem);
+        const intermediateDer = pemToDer(intermediate.cert);
+        const rootDer = pemToDer(root.cert);
+
+        const req = {
+          headers: {
+            'client-cert': encodeAsRfc9440(leafDer),
+            'client-cert-chain': encodeAsRfc9440List([intermediateDer, rootDer]),
+          },
+          socket: { authorized: false },
+        };
+
+        const result = extractClientCertificate(req, {
+          certificateSource: 'cloudflare-rfc9440',
+          includeChain: true,
+        });
+
+        assert.strictEqual(result.success, true);
+        assert.ok(result.certificate);
+        assert.strictEqual(result.certificate.subject.CN, 'client.example.com');
+        assert.ok(result.certificate.issuerCertificate);
+        assert.strictEqual(result.certificate.issuerCertificate.subject.CN, 'Intermediate CA');
+        assert.ok(result.certificate.issuerCertificate.issuerCertificate);
+        assert.strictEqual(
+          result.certificate.issuerCertificate.issuerCertificate.subject.CN,
+          'Root CA'
+        );
+      });
+
+      it('should strip chain by default when includeChain is false', async () => {
+        const selfsigned = (await import('selfsigned')).default;
+        const intermediate = await selfsigned.generate(
+          [{ name: 'commonName', value: 'Intermediate CA' }],
+          { algorithm: 'sha256', keySize: 2048, days: 1 }
+        );
+
+        const leafDer = pemToDer(testPem);
+        const intermediateDer = pemToDer(intermediate.cert);
+
+        const req = {
+          headers: {
+            'client-cert': encodeAsRfc9440(leafDer),
+            'client-cert-chain': encodeAsRfc9440List([intermediateDer]),
+          },
+          socket: { authorized: false },
+        };
+
+        const result = extractClientCertificate(req, {
+          certificateSource: 'cloudflare-rfc9440',
+        });
+
+        assert.strictEqual(result.success, true);
+        assert.ok(result.certificate);
+        assert.strictEqual(result.certificate.issuerCertificate, undefined);
+      });
+
+      it('should succeed with leaf only when chain header is absent', () => {
+        const derBuffer = pemToDer(testPem);
+        const req = {
+          headers: {
+            'client-cert': encodeAsRfc9440(derBuffer),
+          },
+          socket: { authorized: false },
+        };
+
+        const result = extractClientCertificate(req, {
+          certificateSource: 'cloudflare-rfc9440',
+          includeChain: true,
+        });
+
+        assert.strictEqual(result.success, true);
+        assert.ok(result.certificate);
+        assert.strictEqual(result.certificate.subject.CN, 'client.example.com');
+        assert.strictEqual(result.certificate.issuerCertificate, undefined);
+      });
+
+      it('should leave issuerCertificate unset when every chain entry fails to parse', () => {
+        const leafDer = pemToDer(testPem);
+
+        const req = {
+          headers: {
+            'client-cert': encodeAsRfc9440(leafDer),
+            'client-cert-chain': ':not_base64:, :also_garbage:',
+          },
+          socket: { authorized: false },
+        };
+
+        const result = extractClientCertificate(req, {
+          certificateSource: 'cloudflare-rfc9440',
+          includeChain: true,
+        });
+
+        // Leaf still parses; chain is empty after filtering parse failures.
+        assert.strictEqual(result.success, true);
+        assert.ok(result.certificate);
+        assert.strictEqual(result.certificate.issuerCertificate, undefined);
+      });
+
+      it('should drop malformed chain entries and link the survivors', async () => {
+        const selfsigned = (await import('selfsigned')).default;
+        const intermediate = await selfsigned.generate(
+          [{ name: 'commonName', value: 'Intermediate CA' }],
+          { algorithm: 'sha256', keySize: 2048, days: 1 }
+        );
+
+        const leafDer = pemToDer(testPem);
+        const intermediateDer = pemToDer(intermediate.cert);
+
+        const chainValue = [
+          ':not_base64:',
+          encodeAsRfc9440(intermediateDer),
+          ':also_garbage:',
+        ].join(', ');
+
+        const req = {
+          headers: {
+            'client-cert': encodeAsRfc9440(leafDer),
+            'client-cert-chain': chainValue,
+          },
+          socket: { authorized: false },
+        };
+
+        const result = extractClientCertificate(req, {
+          certificateSource: 'cloudflare-rfc9440',
+          includeChain: true,
+        });
+
+        assert.strictEqual(result.success, true);
+        assert.ok(result.certificate);
+        assert.ok(result.certificate.issuerCertificate);
+        assert.strictEqual(result.certificate.issuerCertificate.subject.CN, 'Intermediate CA');
+        assert.strictEqual(result.certificate.issuerCertificate.issuerCertificate, undefined);
+      });
+    });
+
+    describe('chainHeader option (explicit)', () => {
+      it('should link chain when using custom certificateHeader + chainHeader', async () => {
+        const selfsigned = (await import('selfsigned')).default;
+        const intermediate = await selfsigned.generate(
+          [{ name: 'commonName', value: 'Intermediate CA' }],
+          { algorithm: 'sha256', keySize: 2048, days: 1 }
+        );
+
+        const leafDer = pemToDer(testPem);
+        const intermediateDer = pemToDer(intermediate.cert);
+
+        const req = {
+          headers: {
+            'x-leaf-cert': encodeAsRfc9440(leafDer),
+            'x-chain-cert': encodeAsRfc9440List([intermediateDer]),
+          },
+          socket: { authorized: false },
+        };
+
+        const result = extractClientCertificate(req, {
+          certificateHeader: 'X-Leaf-Cert',
+          chainHeader: 'X-Chain-Cert',
+          headerEncoding: 'rfc9440',
+          includeChain: true,
+        });
+
+        assert.strictEqual(result.success, true);
+        assert.ok(result.certificate);
+        assert.ok(result.certificate.issuerCertificate);
+        assert.strictEqual(result.certificate.issuerCertificate.subject.CN, 'Intermediate CA');
+      });
+
+      it('should override preset chainHeader when explicit chainHeader is provided', async () => {
+        const selfsigned = (await import('selfsigned')).default;
+        const intermediate = await selfsigned.generate(
+          [{ name: 'commonName', value: 'Override Intermediate CA' }],
+          { algorithm: 'sha256', keySize: 2048, days: 1 }
+        );
+
+        const leafDer = pemToDer(testPem);
+        const intermediateDer = pemToDer(intermediate.cert);
+
+        const req = {
+          headers: {
+            'client-cert': encodeAsRfc9440(leafDer),
+            'x-custom-chain': encodeAsRfc9440List([intermediateDer]),
+            // The preset's default `client-cert-chain` is absent on purpose.
+          },
+          socket: { authorized: false },
+        };
+
+        const result = extractClientCertificate(req, {
+          certificateSource: 'cloudflare-rfc9440',
+          chainHeader: 'X-Custom-Chain',
+          includeChain: true,
+        });
+
+        assert.strictEqual(result.success, true);
+        assert.ok(result.certificate);
+        assert.ok(result.certificate.issuerCertificate);
+        assert.strictEqual(
+          result.certificate.issuerCertificate.subject.CN,
+          'Override Intermediate CA'
+        );
+      });
+
+      it('should ignore chain header when its value is an array (duplicate headers)', async () => {
+        const leafDer = pemToDer(testPem);
+
+        const req = {
+          headers: {
+            'client-cert': encodeAsRfc9440(leafDer),
+            'client-cert-chain': ['header1', 'header2'],
+          },
+          socket: { authorized: false },
+        };
+
+        const result = extractClientCertificate(req, {
+          certificateSource: 'cloudflare-rfc9440',
+          includeChain: true,
+        });
+
+        // Leaf still parses; chain is silently dropped.
+        assert.strictEqual(result.success, true);
+        assert.ok(result.certificate);
+        assert.strictEqual(result.certificate.issuerCertificate, undefined);
       });
     });
 

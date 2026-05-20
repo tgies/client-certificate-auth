@@ -94,6 +94,20 @@ describe('parsers module', () => {
             assert.equal(PRESETS['aws-alb'].encoding, 'url-pem-aws');
         });
 
+        it('should have aws-alb-verify preset', () => {
+            assert.ok(PRESETS['aws-alb-verify']);
+            assert.equal(PRESETS['aws-alb-verify'].header, 'x-amzn-mtls-clientcert-leaf');
+            assert.equal(PRESETS['aws-alb-verify'].encoding, 'url-pem-aws');
+            assert.equal(PRESETS['aws-alb-verify'].chainHeader, undefined);
+        });
+
+        it('should have azure-app-service preset', () => {
+            assert.ok(PRESETS['azure-app-service']);
+            assert.equal(PRESETS['azure-app-service'].header, 'x-arr-clientcert');
+            assert.equal(PRESETS['azure-app-service'].encoding, 'base64-der');
+            assert.equal(PRESETS['azure-app-service'].chainHeader, undefined);
+        });
+
         it('should have envoy preset', () => {
             assert.ok(PRESETS['envoy']);
             assert.equal(PRESETS['envoy'].header, 'x-forwarded-client-cert');
@@ -104,6 +118,13 @@ describe('parsers module', () => {
             assert.ok(PRESETS['cloudflare']);
             assert.equal(PRESETS['cloudflare'].header, 'cf-client-cert-der-base64');
             assert.equal(PRESETS['cloudflare'].encoding, 'base64-der');
+        });
+
+        it('should have cloudflare-rfc9440 preset', () => {
+            assert.ok(PRESETS['cloudflare-rfc9440']);
+            assert.equal(PRESETS['cloudflare-rfc9440'].header, 'client-cert');
+            assert.equal(PRESETS['cloudflare-rfc9440'].chainHeader, 'client-cert-chain');
+            assert.equal(PRESETS['cloudflare-rfc9440'].encoding, 'rfc9440');
         });
 
         it('should have traefik preset', () => {
