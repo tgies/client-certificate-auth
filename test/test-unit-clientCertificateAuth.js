@@ -250,7 +250,8 @@ describe('clientCertificateAuth', () => {
             assert.equal(callbackCalled, false);
             assert.ok(err instanceof Error);
             assert.equal(err.status, 401);
-            assert.ok(err.message.includes('CERT_UNTRUSTED'));
+            assert.equal(err.message, 'Unauthorized: Client certificate required');
+            assert.ok(!err.message.includes('CERT_UNTRUSTED'), 'authorizationError must not leak into client-facing message');
             done();
           });
         }
@@ -274,7 +275,7 @@ describe('clientCertificateAuth', () => {
         middleware(reqNoSocket, mockRes, (err) => {
           assert.ok(err instanceof Error);
           assert.equal(err.status, 401);
-          assert.ok(err.message.includes('unknown'));
+          assert.equal(err.message, 'Unauthorized: Client certificate required');
           done();
         });
       });
@@ -485,8 +486,7 @@ describe('clientCertificateAuth', () => {
           middleware(req, mockRes, (err) => {
             assert.ok(err instanceof Error);
             assert.equal(err.status, 401);
-            assert.ok(err.message.includes('Certificate verification failed'));
-            assert.ok(err.message.includes('header missing'));
+            assert.equal(err.message, 'Unauthorized: Certificate verification failed');
             done();
           });
         });
@@ -512,8 +512,31 @@ describe('clientCertificateAuth', () => {
           middleware(req, mockRes, (err) => {
             assert.ok(err instanceof Error);
             assert.equal(err.status, 401);
-            assert.ok(err.message.includes('Certificate verification failed'));
-            assert.ok(err.message.includes('FAILED:unable to verify'));
+            done();
+          });
+        });
+
+        it('should not leak the verifyHeader value into the client-facing message', done => {
+          const encodedCert = encodeURIComponent(testPem);
+          const req = {
+            secure: false,
+            socket: { authorized: false },
+            headers: {
+              'x-ssl-client-cert': encodedCert,
+              'x-ssl-client-verify': 'FAILED:reason-an-attacker-set'
+            }
+          };
+
+          const middleware = clientCertificateAuth(() => true, {
+            certificateHeader: 'X-SSL-Client-Cert',
+            headerEncoding: 'url-pem',
+            verifyHeader: 'X-SSL-Client-Verify',
+            verifyValue: 'SUCCESS'
+          });
+
+          middleware(req, mockRes, (err) => {
+            assert.equal(err.message, 'Unauthorized: Certificate verification failed');
+            assert.ok(!err.message.includes('FAILED:reason-an-attacker-set'));
             done();
           });
         });
@@ -664,26 +687,22 @@ describe('clientCertificateAuth', () => {
       });
     });
 
-    describe('error message content', () => {
-      it('should include "unknown" when authorizationError is missing', done => {
+    describe('client-facing error sanitization', () => {
+      it('returns a generic message when authorizationError is absent', done => {
         const reqNoError = {
           secure: true,
-          socket: {
-            authorized: false,
-            // authorizationError is undefined
-            getPeerCertificate: getMockPeerCertificate
-          },
+          socket: { authorized: false, getPeerCertificate: getMockPeerCertificate },
           headers: {}
         };
         const middleware = clientCertificateAuth(() => true);
         middleware(reqNoError, mockRes, (err) => {
           assert.ok(err instanceof Error);
-          assert.ok(err.message.includes('unknown'), `Expected "unknown" in: ${err.message}`);
+          assert.equal(err.message, 'Unauthorized: Client certificate required');
           done();
         });
       });
 
-      it('should include the actual authorizationError when present', done => {
+      it('does not leak authorizationError into the client message when present', done => {
         const reqWithError = {
           secure: true,
           socket: {
@@ -696,11 +715,12 @@ describe('clientCertificateAuth', () => {
         const middleware = clientCertificateAuth(() => true);
         middleware(reqWithError, mockRes, (err) => {
           assert.ok(err instanceof Error);
-          assert.ok(err.message.includes('CERT_REVOKED'), `Expected "CERT_REVOKED" in: ${err.message}`);
-          assert.ok(!err.message.includes('unknown'), 'Should not contain "unknown"');
+          assert.equal(err.message, 'Unauthorized: Client certificate required');
+          assert.ok(!err.message.includes('CERT_REVOKED'));
           done();
         });
       });
+
     });
 
     describe('req.clientCertificate', () => {
@@ -859,6 +879,7 @@ describe('clientCertificateAuth', () => {
             assert.ok(hookArgs, 'onRejected should have been called');
             assert.equal(hookArgs.cert, null);
             assert.equal(hookArgs.reason, 'socket_not_authorized');
+            assert.equal(hookArgs.req.socket.authorizationError, 'CERT_UNTRUSTED');
             done();
           });
         });
@@ -1068,7 +1089,7 @@ describe('clientCertificateAuth', () => {
           headerEncoding: 'url-pem',
           verifyHeader: 'X-SSL-Client-Verify',
           verifyValue: 'SUCCESS',
-          onRejected: (cert, _req, reason) => { hookArgs = { cert, reason }; }
+          onRejected: (cert, req, reason) => { hookArgs = { cert, req, reason }; }
         });
 
         await new Promise(resolve => {
@@ -1077,6 +1098,7 @@ describe('clientCertificateAuth', () => {
               assert.ok(hookArgs, 'onRejected should have been called');
               assert.equal(hookArgs.cert, null);
               assert.equal(hookArgs.reason, 'verification_header_mismatch');
+              assert.equal(hookArgs.req.headers['x-ssl-client-verify'], 'FAILED');
               resolve();
             });
           });
