@@ -72,6 +72,7 @@
     "node": ">= 20"
   },
   "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.2",
     "@commitlint/cli": "^20.4.3",
     "@commitlint/config-conventional": "^20.5.0",
     "@stryker-mutator/core": "^9.6.0",
@@ -142,5 +143,8 @@
     "lib/**/*.cjs",
     "lib/**/*.d.ts",
     "lib/**/*.d.cts"
-  ]
+  ],
+  "overrides": {
+    "fflate": "0.8.2"
+  }
 }
