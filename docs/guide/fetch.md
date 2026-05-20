@@ -24,6 +24,10 @@ The helper returns the same `{ success, certificate, reason }` result as `extrac
 
 Web `Request` does not expose the TLS socket, so the Fetch adapter is header-only. Configure a header source via `certificateSource` or `certificateHeader` + `headerEncoding`; `fallbackToSocket` has no effect.
 
+::: warning Runtime requirement
+The adapter imports the core extractor, which uses `node:crypto` (`X509Certificate`). Runtimes must provide Node-compatible crypto: Node, Bun, Deno, and Cloudflare Workers with `nodejs_compat` all work. Pure edge runtimes without Node compatibility will fail at import time.
+:::
+
 ## Recipes
 
 ### Hono
