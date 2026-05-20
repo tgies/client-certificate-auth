@@ -20,6 +20,8 @@ export default defineConfig({
         items: [
           { text: 'Getting Started', link: '/guide/getting-started' },
           { text: 'Reverse Proxy Support', link: '/guide/reverse-proxy' },
+          { text: 'AWS Lambda', link: '/guide/lambda' },
+          { text: 'Fetch / Web Request', link: '/guide/fetch' },
           { text: 'WebSocket Support', link: '/guide/websocket' },
           { text: 'Authorization Helpers', link: '/guide/helpers' },
           { text: 'TypeScript & CJS', link: '/guide/typescript' },

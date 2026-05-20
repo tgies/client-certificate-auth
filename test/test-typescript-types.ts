@@ -27,6 +27,7 @@ const _asyncMiddleware = clientCertificateAuth(async (cert) => {
 const options: ClientCertificateAuthOptions = {
     certificateSource: 'aws-alb',
     certificateHeader: 'X-SSL-Client-Cert',
+    chainHeader: 'X-SSL-Client-Cert-Chain',
     headerEncoding: 'url-pem',
     fallbackToSocket: true,
     includeChain: true,
@@ -34,6 +35,13 @@ const options: ClientCertificateAuthOptions = {
     verifyValue: 'SUCCESS',
 };
 const _withOptions = clientCertificateAuth(() => true, options);
+
+// Test 5a: All shipped preset names are accepted by certificateSource
+const _awsAlbVerify = clientCertificateAuth(() => true, { certificateSource: 'aws-alb-verify' });
+const _azureAppService = clientCertificateAuth(() => true, { certificateSource: 'azure-app-service' });
+const _cloudflareRfc9440 = clientCertificateAuth(() => true, { certificateSource: 'cloudflare-rfc9440' });
+const _envoy = clientCertificateAuth(() => true, { certificateSource: 'envoy' });
+const _traefik = clientCertificateAuth(() => true, { certificateSource: 'traefik' });
 
 // Test 6: ClientCertRequest has clientCertificate property
 function checkRequest(req: ClientCertRequest): void {
@@ -172,6 +180,86 @@ async function testExpressIntegrationCjsLoad() {
     app.use(cjs((cert) => cert.subject.CN === 'admin'));
 }
 
+// Test 20: Lambda subpath - extractClientCertificateFromLambdaEvent
+import { extractClientCertificateFromLambdaEvent } from '../lib/lambda.js';
+import type { LambdaEventWithClientCert, LambdaExtractionResult } from '../lib/lambda.js';
+function testLambdaExtractor() {
+    const event: LambdaEventWithClientCert = {
+        requestContext: {
+            authentication: {
+                clientCert: { clientCertPem: '-----BEGIN CERTIFICATE-----...' },
+            },
+        },
+    };
+    const result: LambdaExtractionResult = extractClientCertificateFromLambdaEvent(event);
+    if (result.success) {
+        const _cn: string | string[] | undefined = result.certificate?.subject?.CN;
+        void _cn;
+    } else {
+        const _reason: string | null = result.reason;
+        void _reason;
+    }
+}
+
+// Test 21: Lambda CJS load() returns the lambda module
+import type cjsLambda from '../lib/lambda.cjs';
+async function testCjsLambdaLoad() {
+    const lambda = await (null as unknown as typeof cjsLambda).load();
+    const _r = lambda.extractClientCertificateFromLambdaEvent({
+        requestContext: { authentication: { clientCert: { clientCertPem: '...' } } },
+    });
+    void _r;
+}
+
+// Test 22: Fetch subpath - extractClientCertificateFromRequest accepts a Web Request
+import { extractClientCertificateFromRequest } from '../lib/fetch.js';
+import type { RequestLike } from '../lib/fetch.js';
+function testFetchExtractor() {
+    const request = new Request('https://example.com', {
+        headers: { 'Client-Cert': ':base64:' },
+    });
+    const result = extractClientCertificateFromRequest(request, {
+        certificateSource: 'cloudflare-rfc9440',
+        includeChain: true,
+    });
+    if (result.success) {
+        const _cn: string | string[] | undefined = result.certificate?.subject?.CN;
+        void _cn;
+    }
+}
+
+// Test 22a: Fetch subpath also accepts any iterable-headers object
+function testFetchExtractorPlainObject() {
+    const headers: RequestLike['headers'] = new Map([['client-cert', ':base64:']]);
+    const _r = extractClientCertificateFromRequest({ headers }, {
+        certificateSource: 'cloudflare-rfc9440',
+    });
+    void _r;
+}
+
+// Test 23: Fetch CJS load() returns the fetch module
+import type cjsFetch from '../lib/fetch.cjs';
+async function testCjsFetchLoad() {
+    const fetchAdapter = await (null as unknown as typeof cjsFetch).load();
+    const request = new Request('https://example.com', { headers: {} });
+    const _r = fetchAdapter.extractClientCertificateFromRequest(request, {
+        certificateSource: 'aws-alb',
+    });
+    void _r;
+}
+
+// Test 24: chainHeader option is typed as optional string
+const _chainHeaderOption = clientCertificateAuth(() => true, {
+    certificateSource: 'cloudflare-rfc9440',
+    chainHeader: 'X-Custom-Chain',
+});
+
+// Test 25: Negative - invalid preset name still rejected after the new presets land
+const _badNewSource = clientCertificateAuth(() => true, {
+    // @ts-expect-error - 'azure-application-gateway' is not (yet) a valid CertificateSource
+    certificateSource: 'azure-application-gateway',
+});
+
 // Suppress unused variable warnings - this file is for type-checking only
 void _statusCode;
 void _syncMiddleware;
@@ -191,3 +279,15 @@ void testCjsExtractorLoad;
 void testExpressIntegration;
 void testExpressIntegrationCjsSync;
 void testExpressIntegrationCjsLoad;
+void _awsAlbVerify;
+void _azureAppService;
+void _cloudflareRfc9440;
+void _envoy;
+void _traefik;
+void testLambdaExtractor;
+void testCjsLambdaLoad;
+void testFetchExtractor;
+void testFetchExtractorPlainObject;
+void testCjsFetchLoad;
+void _chainHeaderOption;
+void _badNewSource;
