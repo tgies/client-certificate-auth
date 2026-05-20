@@ -66,10 +66,13 @@ export interface LambdaExtractionResult {
  * both v2.0 payload format (`event.requestContext.authentication.clientCert`)
  * and v1.0 payload format (`event.requestContext.identity.clientCert`).
  *
- * @param event - The Lambda event from API Gateway
+ * Also accepts `null` and `undefined`, returning
+ * `lambda_event_missing_clientcert`.
+ *
+ * @param event - The Lambda event from API Gateway, or null/undefined
  *
  * @see https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-mutual-tls.html
  */
 export declare function extractClientCertificateFromLambdaEvent(
-    event: LambdaEventWithClientCert
+    event: LambdaEventWithClientCert | null | undefined
 ): LambdaExtractionResult;
