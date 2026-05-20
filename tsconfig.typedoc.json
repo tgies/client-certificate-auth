@@ -1,9 +1,18 @@
 {
   "extends": "./tsconfig.json",
   "include": [
+    "lib/**/*.js",
     "lib/**/*.d.ts"
   ],
   "exclude": [
     "node_modules"
+  ],
+  "files": [
+    "lib/clientCertificateAuth.js",
+    "lib/helpers.js",
+    "lib/parsers.js",
+    "lib/extractor.js",
+    "lib/lambda.js",
+    "lib/fetch.js"
   ]
 }
