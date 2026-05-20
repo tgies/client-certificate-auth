@@ -32,6 +32,21 @@ describe('extractClientCertificateFromRequest', () => {
       assert.strictEqual(result.success, false);
       assert.strictEqual(result.reason, 'socket_not_authorized');
     });
+
+    it('should strip fallbackToSocket so missing headers report header_missing_or_malformed', () => {
+      // fallbackToSocket is stripped; there is no socket to fall back to.
+      const request = new Request('https://example.com/api', {
+        headers: { 'X-Other-Header': 'unrelated' },
+      });
+
+      const result = extractClientCertificateFromRequest(request, {
+        certificateSource: 'cloudflare-rfc9440',
+        fallbackToSocket: true,
+      });
+
+      assert.strictEqual(result.success, false);
+      assert.strictEqual(result.reason, 'header_missing_or_malformed');
+    });
   });
 
   describe('with Web Request', () => {
@@ -174,9 +189,6 @@ describe('extractClientCertificateFromRequest', () => {
 
   describe('with plain header-iterable object (non-Request)', () => {
     it('should accept a plain object whose headers field iterates [name, value] tuples', () => {
-      // Map iterates as [key, value] tuples directly. The adapter only
-      // requires Object.fromEntries(request.headers) to produce a plain
-      // headers object - any iterable of pairs works.
       const headers = new Map([
         ['client-cert', encodeAsRfc9440(testDer)],
       ]);
@@ -200,12 +212,24 @@ describe('extractClientCertificateFromRequest', () => {
       assert.strictEqual(result.success, true);
       assert.strictEqual(result.certificate.subject.CN, 'fetch.example.com');
     });
+
+    it('should normalize header names to lowercase for the RequestLike Map path', () => {
+      // Map preserves casing; mixed-case keys need lowercasing.
+      const headers = new Map([
+        ['X-ARR-ClientCert', testDer.toString('base64')],
+      ]);
+
+      const result = extractClientCertificateFromRequest({ headers }, {
+        certificateSource: 'azure-app-service',
+      });
+
+      assert.strictEqual(result.success, true);
+      assert.strictEqual(result.certificate.subject.CN, 'fetch.example.com');
+    });
   });
 
-  describe('header-only by construction', () => {
+  describe('header-only behavior', () => {
     it('should never access a socket field even if one is present on the request', () => {
-      // The adapter should not consult any socket field. We pass a socket
-      // that would throw if read, then confirm extraction works header-only.
       const headers = new Headers();
       headers.set('client-cert', encodeAsRfc9440(testDer));
 
