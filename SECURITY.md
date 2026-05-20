@@ -4,8 +4,13 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
+| 2.x     | :white_check_mark: |
 | 1.x     | :white_check_mark: |
 | < 1.0   | :x:                |
+
+## Backport Policy
+
+Security and critical compatibility fixes are backported to the most recent prior major version line on a best-effort basis. The 1.x maintenance branch is `maint/1.x`, published to npm with the `legacy` dist-tag. New features are only added to the current major (master).
 
 ## Reporting a Vulnerability
 

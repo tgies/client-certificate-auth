@@ -2,7 +2,7 @@ name: Mutation Testing
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, 'maint/1.x']
 
 concurrency:
   group: mutation-${{ github.ref }}
