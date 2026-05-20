@@ -14,7 +14,14 @@ export type HeaderEncoding = 'url-pem' | 'url-pem-aws' | 'xfcc' | 'base64-der' |
 /**
  * Supported certificate source presets.
  */
-export type CertificateSource = 'aws-alb' | 'envoy' | 'cloudflare' | 'traefik';
+export type CertificateSource =
+    | 'aws-alb'
+    | 'aws-alb-verify'
+    | 'azure-app-service'
+    | 'cloudflare'
+    | 'cloudflare-rfc9440'
+    | 'envoy'
+    | 'traefik';
 
 /**
  * Preset configuration for a reverse proxy.
@@ -22,6 +29,12 @@ export type CertificateSource = 'aws-alb' | 'envoy' | 'cloudflare' | 'traefik';
 export interface PresetConfig {
     /** HTTP header name (lowercase) */
     header: string;
+    /**
+     * Optional second header carrying the certificate chain. Set on
+     * two-header schemes like RFC 9440 (Client-Cert + Client-Cert-Chain).
+     * Lowercased per Node convention.
+     */
+    chainHeader?: string;
     /** Encoding format used by this proxy */
     encoding: HeaderEncoding;
 }

@@ -78,6 +78,15 @@ export interface ClientCertificateAuthOptions {
     certificateHeader?: string;
 
     /**
+     * Optional second header carrying the certificate chain alongside the leaf.
+     * Split on commas per RFC 9440, each item parsed with the same
+     * headerEncoding, results linked via issuerCertificate. For non-RFC-9440
+     * encodings the comma split may not match the encoding's list convention.
+     * Same trust boundary as certificateHeader.
+     */
+    chainHeader?: string;
+
+    /**
      * How to decode the header value.
      * Required when using certificateHeader without certificateSource.
      */
