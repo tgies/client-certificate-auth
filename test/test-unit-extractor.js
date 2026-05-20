@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { extractClientCertificate } from '../lib/extractor.js';
+import { extractClientCertificate, validateExtractorOptions } from '../lib/extractor.js';
 
 // Mock certificate for socket tests
 const getMockPeerCertificate = () => ({
@@ -74,6 +74,74 @@ describe('extractClientCertificate', () => {
     it('should not throw when neither verifyHeader nor verifyValue is set', () => {
       const req = { headers: {}, socket: { authorized: false } };
       assert.doesNotThrow(() => extractClientCertificate(req, {}));
+    });
+
+    it('should not throw when options argument is omitted entirely', () => {
+      const req = { headers: {}, socket: { authorized: false } };
+      assert.doesNotThrow(() => extractClientCertificate(req));
+    });
+
+    it('should throw when certificateSource is unknown', () => {
+      const req = { headers: {}, socket: { authorized: false } };
+      assert.throws(
+        () => extractClientCertificate(req, { certificateSource: 'aws-alp' }),
+        { name: 'Error', message: /unknown certificateSource 'aws-alp'/ }
+      );
+    });
+
+    it('should throw when certificateSource is an inherited Object.prototype key', () => {
+      const req = { headers: {}, socket: { authorized: false } };
+      for (const key of ['toString', 'constructor', 'hasOwnProperty', '__proto__']) {
+        assert.throws(
+          () => extractClientCertificate(req, { certificateSource: key }),
+          { name: 'Error', message: new RegExp(`unknown certificateSource '${key}'`) },
+          `${key} should be rejected as an inherited prototype key`
+        );
+      }
+    });
+
+    it('should throw when headerEncoding is unknown', () => {
+      const req = { headers: {}, socket: { authorized: false } };
+      assert.throws(
+        () => extractClientCertificate(req, {
+          certificateHeader: 'X-Cert',
+          headerEncoding: 'url-perm',
+        }),
+        { name: 'Error', message: /unknown headerEncoding 'url-perm'/ }
+      );
+    });
+
+    it('should throw when certificateHeader is set without headerEncoding or preset', () => {
+      const req = { headers: {}, socket: { authorized: false } };
+      assert.throws(
+        () => extractClientCertificate(req, { certificateHeader: 'X-Cert' }),
+        { name: 'Error', message: /certificateHeader requires headerEncoding/ }
+      );
+    });
+
+    it('should not throw when certificateHeader pairs with a preset (encoding from preset)', () => {
+      const req = { headers: {}, socket: { authorized: false } };
+      assert.doesNotThrow(() =>
+        extractClientCertificate(req, {
+          certificateSource: 'aws-alb',
+          certificateHeader: 'X-Override',
+        })
+      );
+    });
+
+    it('should not throw when certificateSource alone is valid', () => {
+      const req = { headers: {}, socket: { authorized: false } };
+      assert.doesNotThrow(() =>
+        extractClientCertificate(req, { certificateSource: 'envoy' })
+      );
+    });
+
+    it('should not throw when validateExtractorOptions is called with no arguments', () => {
+      assert.doesNotThrow(() => validateExtractorOptions());
+    });
+
+    it('should throw TypeError when validateExtractorOptions is called with null', () => {
+      assert.throws(() => validateExtractorOptions(null), { name: 'TypeError' });
     });
   });
 
