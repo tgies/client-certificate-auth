@@ -28,6 +28,15 @@ updates:
           - "minor"
           - "patch"
 
+  - package-ecosystem: "npm"
+    directories:
+      - "/"
+      - "/examples/e2e-mtls"
+    target-branch: "maint/1.x"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 0
+
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
