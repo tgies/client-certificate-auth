@@ -51,6 +51,26 @@
         "types": "./lib/extractor.d.cts",
         "default": "./lib/extractor.cjs"
       }
+    },
+    "./lambda": {
+      "import": {
+        "types": "./lib/lambda.d.ts",
+        "default": "./lib/lambda.js"
+      },
+      "require": {
+        "types": "./lib/lambda.d.cts",
+        "default": "./lib/lambda.cjs"
+      }
+    },
+    "./fetch": {
+      "import": {
+        "types": "./lib/fetch.d.ts",
+        "default": "./lib/fetch.js"
+      },
+      "require": {
+        "types": "./lib/fetch.d.cts",
+        "default": "./lib/fetch.cjs"
+      }
     }
   },
   "main": "./lib/clientCertificateAuth.cjs",
@@ -65,6 +85,12 @@
       ],
       "extractor": [
         "./lib/extractor.d.ts"
+      ],
+      "lambda": [
+        "./lib/lambda.d.ts"
+      ],
+      "fetch": [
+        "./lib/fetch.d.ts"
       ]
     }
   },
