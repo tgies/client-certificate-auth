@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.1] - 2026-05-19
+
+### Security
+
+- **Sanitized authentication failure messages** — `socket_not_authorized` (both ESM and CJS) previously interpolated `req.socket.authorizationError` (OpenSSL codes like `CERT_HAS_EXPIRED`, `UNABLE_TO_GET_ISSUER_CERT`) into the `next(err)` message; `verification_header_mismatch` (ESM) reflected `req.headers[verifyHeader]` similarly. Both now use static generic text. Diagnostic details remain available via the `req` argument passed to the `onRejected` hook.
+
+### Fixed
+
+- **CJS sync middleware guards `getPeerCertificate`** — `lib/clientCertificateAuth.cjs` previously called `req.socket.getPeerCertificate(includeChain)` without checking the method exists. After the socket-type widening (below), a request that satisfies the new CJS type but lacks `getPeerCertificate` would throw an uncaught `TypeError` instead of returning a clean 500. The CJS path now mirrors the guard in the ESM extractor: missing or non-function `getPeerCertificate` produces a 500 with the same "could not be retrieved" message used elsewhere.
+- **Shared option validation between middleware and extractor** — `extractClientCertificate()` previously only validated the `verifyHeader`/`verifyValue` pairing. Typos in `certificateSource` or `headerEncoding` silently fell through to `{ success: false, reason: 'header_missing_or_malformed' }` instead of throwing like the middleware constructor does. The four checks are now in a shared `validateExtractorOptions()` helper exported from `lib/extractor.js`, called from both entry points.
+
+### Types
+
+- **`ClientCertRequest.socket` widened for Express compatibility** — `socket` was typed as `TLSSocket & {...}` in both `.d.ts` and `.d.cts`, but Express's `Request.socket` is `net.Socket`, so `app.use(clientCertificateAuth(...))` failed TypeScript overload resolution in any Express + TS app. The type now uses `net.Socket & {...optional TLS-specific fields...}` (still detected at runtime via feature checks). No Express types are imported into the published declarations, so consumers using bare Node or Connect-style frameworks need no additional `@types/*` dependency. Added an Express type test covering `app.use(...)` and `ClientCertRequest` as a route-handler request type.
+
+### Documentation
+
+- Added "Upgrading from 1.x" section to the README and the docs site, covering the strict-true callback requirement and constructor-time header-option validation introduced in v2.0.0.
+- Clarified `verifyValue` exact-match semantics in the JSDoc, `.d.ts`, and the reverse-proxy guide. Comparison is exact (case-sensitive, no whitespace trimming).
+
 ## [2.0.0] - 2026-05-15
 
 ### Changed (BREAKING)
