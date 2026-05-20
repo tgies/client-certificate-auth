@@ -7,9 +7,19 @@ When your application runs behind a TLS-terminating reverse proxy, the client ce
 For common proxies, use the `certificateSource` option to automatically configure the correct header and encoding:
 
 ```javascript
-// AWS Application Load Balancer
+// AWS Application Load Balancer (mTLS passthrough)
 app.use(clientCertificateAuth(checkAuth, {
   certificateSource: 'aws-alb'
+}));
+
+// AWS Application Load Balancer (mTLS verify mode)
+app.use(clientCertificateAuth(checkAuth, {
+  certificateSource: 'aws-alb-verify'
+}));
+
+// Azure App Service
+app.use(clientCertificateAuth(checkAuth, {
+  certificateSource: 'azure-app-service'
 }));
 
 // Envoy / Istio
@@ -17,9 +27,14 @@ app.use(clientCertificateAuth(checkAuth, {
   certificateSource: 'envoy'
 }));
 
-// Cloudflare
+// Cloudflare (legacy Cf-Client-Cert-Der-Base64 header)
 app.use(clientCertificateAuth(checkAuth, {
   certificateSource: 'cloudflare'
+}));
+
+// Cloudflare (RFC 9440 Client-Cert / Client-Cert-Chain headers, March 2026+)
+app.use(clientCertificateAuth(checkAuth, {
+  certificateSource: 'cloudflare-rfc9440'
 }));
 
 // Traefik
@@ -32,11 +47,14 @@ app.use(clientCertificateAuth(checkAuth, {
 
 Each preset maps to a specific header name and encoding format:
 
-| Preset | Header | Encoding |
-|--------|--------|----------|
+| Preset | Header(s) | Encoding |
+|--------|-----------|----------|
 | `aws-alb` | `X-Amzn-Mtls-Clientcert` | URL-encoded PEM (AWS variant) |
-| `envoy` | `X-Forwarded-Client-Cert` | XFCC structured format |
+| `aws-alb-verify` | `X-Amzn-Mtls-Clientcert-Leaf` | URL-encoded PEM (AWS variant) |
+| `azure-app-service` | `X-ARR-ClientCert` | Base64-encoded DER |
 | `cloudflare` | `Cf-Client-Cert-Der-Base64` | Base64-encoded DER |
+| `cloudflare-rfc9440` | `Client-Cert` + `Client-Cert-Chain` | RFC 9440 |
+| `envoy` | `X-Forwarded-Client-Cert` | XFCC structured format |
 | `traefik` | `X-Forwarded-Tls-Client-Cert` | Base64-encoded DER \* |
 
 ::: tip Traefik note
@@ -45,6 +63,20 @@ The `traefik` preset targets Traefik v3's `PassTLSClientCert` middleware with `p
 
 ::: tip Cloudflare note
 Cloudflare also provides certificates via the `CF-Client-Cert-PEM` header (URL-encoded PEM). If you use that header instead, configure manually with `certificateHeader: 'CF-Client-Cert-PEM'` and `headerEncoding: 'url-pem'`.
+
+For the newer RFC 9440 forwarding feature (March 2026+), use the `cloudflare-rfc9440` preset, which pairs the standard `Client-Cert` header with the `Client-Cert-Chain` header via the new `chainHeader` option (see "Chain Header" below).
+:::
+
+::: tip Azure note
+The `azure-app-service` preset targets Azure App Service, which sends the bare base64-encoded DER (the body of a PEM cert with the BEGIN/END delimiters stripped) in `X-ARR-ClientCert`.
+
+Azure Application Gateway uses the same header name via a rewrite rule on the `{var_client_certificate}` server variable, but emits PEM (with BEGIN/END delimiters), not base64 DER. Azure API Management exposes client certificates through a policy/context model rather than a header. Both are deployment-specific; configure manually with the appropriate `certificateHeader` + `headerEncoding` combination, or open an issue if you want a dedicated preset.
+:::
+
+::: warning Azure App Service does not validate the client certificate
+App Service forwards whatever certificate the client presents during the TLS handshake. It does not check the certificate against a configured trust store. The middleware can parse the certificate out of the header, but your validation callback is responsible for full trust verification: matching the issuer against an expected CA, checking the validity window, checking revocation if applicable, and any application-level subject checks. A callback that only checks `cert.subject.CN` will accept any well-formed certificate any client cares to present.
+
+If you need ALB-style "the proxy already validated the cert" semantics on Azure, configure validation at the Application Gateway or API Management layer ahead of App Service, or run client cert validation in your application code against a trust store you control.
 :::
 
 ## Custom Headers
@@ -58,15 +90,21 @@ app.use(clientCertificateAuth(checkAuth, {
   headerEncoding: 'url-pem'
 }));
 
-// Google Cloud Load Balancer (RFC 9440)
+// Google Cloud Load Balancer (custom header populated from {client_cert_leaf}, RFC 9440)
 app.use(clientCertificateAuth(checkAuth, {
-  certificateHeader: 'X-SSL-Whatever-You-Use',
+  certificateHeader: 'X-Client-Cert-Leaf',
   headerEncoding: 'rfc9440'
 }));
 
 // HAProxy with base64 DER
 app.use(clientCertificateAuth(checkAuth, {
   certificateHeader: 'X-SSL-Whatever-You-Use',
+  headerEncoding: 'base64-der'
+}));
+
+// Caddy with the certificate_der_base64 placeholder
+app.use(clientCertificateAuth(checkAuth, {
+  certificateHeader: 'X-Client-Cert',
   headerEncoding: 'base64-der'
 }));
 ```
@@ -80,8 +118,32 @@ The library supports five encoding formats covering all major reverse proxies:
 | `url-pem` | URL-encoded PEM certificate | nginx, HAProxy |
 | `url-pem-aws` | URL-encoded PEM (AWS variant, `+` as safe char) | AWS ALB |
 | `xfcc` | Envoy's structured `Key=Value;...` format | Envoy, Istio |
-| `base64-der` | Base64-encoded DER certificate | Cloudflare, Traefik |
-| `rfc9440` | RFC 9440 format: `:base64-der:` | Google Cloud LB |
+| `base64-der` | Base64-encoded DER certificate | Cloudflare, Traefik, Azure App Service, Caddy |
+| `rfc9440` | RFC 9440 format: `:base64-der:` | Cloudflare (RFC 9440 forwarding), Google Cloud LB |
+
+## Chain Header
+
+Some proxies forward the leaf certificate and the certificate chain in two separate headers. RFC 9440 is the canonical example: the leaf goes in `Client-Cert` and the chain in `Client-Cert-Chain` (a comma-separated structured-field list of `:base64:` items, leaf-nearest first).
+
+The `chainHeader` option pairs a chain header with the configured leaf header. The chain header value is split on commas, each item is parsed with the same `headerEncoding`, and the resulting certificates are linked via `issuerCertificate` after the leaf. Set `includeChain: true` to keep the chain on the request object; otherwise the chain is parsed and dropped (matching the existing single-header chain stripping behavior).
+
+```javascript
+// Cloudflare RFC 9440 (chain header is configured automatically by the preset)
+app.use(clientCertificateAuth(checkAuth, {
+  certificateSource: 'cloudflare-rfc9440',
+  includeChain: true
+}));
+
+// Custom two-header scheme
+app.use(clientCertificateAuth(checkAuth, {
+  certificateHeader: 'X-Client-Cert',
+  chainHeader: 'X-Client-Cert-Chain',
+  headerEncoding: 'rfc9440',
+  includeChain: true
+}));
+```
+
+The comma splitting targets RFC 9440 structured-field lists. For non-RFC-9440 encodings that may contain commas inside a single cert value, use the single-header chain support already built into `base64-der` (comma-separated DER) and `url-pem-aws` (concatenated PEM blocks) instead.
 
 ## Fallback Mode
 
