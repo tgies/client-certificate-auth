@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.5] - 2026-05-19
+
+### Security
+
+- **Sanitized authentication failure messages** — `socket_not_authorized` (both ESM and CJS) previously interpolated `req.socket.authorizationError` (OpenSSL codes like `CERT_HAS_EXPIRED`, `UNABLE_TO_GET_ISSUER_CERT`) into the `next(err)` message; `verification_header_mismatch` (ESM) reflected `req.headers[verifyHeader]` similarly. Both now use static generic text. Diagnostic details remain available via the `req` argument passed to the `onRejected` hook.
+
 ## [1.3.4] - 2026-04-30
 
 ### Fixed
