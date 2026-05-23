@@ -1146,6 +1146,56 @@ describe('clientCertificateAuth', () => {
         });
       });
 
+      it('should catch and log rejections from non-native thenable returned by onAuthenticated', done => {
+        let errorLogged = false;
+        console.error = (...args) => {
+          if (args[0]?.includes?.('hook error')) {
+            errorLogged = true;
+          }
+        };
+
+        const middleware = clientCertificateAuth(() => true, {
+          onAuthenticated: () => ({
+            then(_resolve, reject) {
+              reject(new Error('Custom thenable explosion'));
+            }
+          })
+        });
+
+        middleware(mockGoodReq, mockRes, (err) => {
+          assert.equal(err, undefined, 'Request should succeed despite hook error');
+          setTimeout(() => {
+            assert.ok(errorLogged, 'Error should have been logged');
+            done();
+          }, 10);
+        });
+      });
+
+      it('should catch and log rejections from non-native thenable returned by onRejected', done => {
+        let errorLogged = false;
+        console.error = (...args) => {
+          if (args[0]?.includes?.('hook error')) {
+            errorLogged = true;
+          }
+        };
+
+        const middleware = clientCertificateAuth(() => false, {
+          onRejected: () => ({
+            then(_resolve, reject) {
+              reject(new Error('Custom thenable explosion'));
+            }
+          })
+        });
+
+        middleware(mockGoodReq, mockRes, (err) => {
+          assert.equal(err?.status, 401, 'Callback returning false should produce 401');
+          setTimeout(() => {
+            assert.ok(errorLogged, 'Error should have been logged');
+            done();
+          }, 10);
+        });
+      });
+
       it('should not call hooks when they are not provided', done => {
         // This test just verifies no errors when hooks are undefined
         const middleware = clientCertificateAuth(() => true);
