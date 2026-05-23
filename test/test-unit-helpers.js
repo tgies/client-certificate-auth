@@ -138,6 +138,16 @@ describe('helpers', () => {
             assert.equal(check(certMixedFp), true);
         });
 
+        it('should match SHA-1 fingerprint supplied as contiguous hex against colon-delimited cert', () => {
+            const check = allowFingerprints(['ABCDEF0123456789ABCDEF0123456789ABCDEF01']);
+            assert.equal(check(mockCert), true);
+        });
+
+        it('should match SHA-1 fingerprint with arbitrary colon placement', () => {
+            const check = allowFingerprints(['ABCD:EF0123456789AB:CDEF0123456789ABCDEF01']);
+            assert.equal(check(mockCert), true);
+        });
+
         // SHA-256 (with SHA256: prefix) tests — compared against cert.fingerprint256
         it('should match SHA-256 fingerprint with SHA256: prefix against cert.fingerprint256', () => {
             const check = allowFingerprints([
@@ -149,6 +159,13 @@ describe('helpers', () => {
         it('should match SHA-256 fingerprint case-insensitively', () => {
             const check = allowFingerprints([
                 'sha256:aa:bb:cc:dd:ee:ff:00:11:22:33:44:55:66:77:88:99:aa:bb:cc:dd:ee:ff:00:11:22:33:44:55:66:77:88:99',
+            ]);
+            assert.equal(check(mockCert), true);
+        });
+
+        it('should match SHA-256 fingerprint with prefix and contiguous hex digest', () => {
+            const check = allowFingerprints([
+                'SHA256:AABBCCDDEEFF00112233445566778899AABBCCDDEEFF00112233445566778899',
             ]);
             assert.equal(check(mockCert), true);
         });
