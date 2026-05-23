@@ -695,6 +695,56 @@ describe('clientCertificateAuth (CommonJS)', () => {
                 });
             });
 
+            it('should catch and log rejections from non-native thenable returned by onAuthenticated', done => {
+                let errorLogged = false;
+                console.error = (...args) => {
+                    if (args[0]?.includes?.('hook error')) {
+                        errorLogged = true;
+                    }
+                };
+
+                const middleware = clientCertificateAuth(() => true, {
+                    onAuthenticated: () => ({
+                        then(_resolve, reject) {
+                            reject(new Error('Custom thenable explosion'));
+                        }
+                    })
+                });
+
+                middleware(mockGoodReq, mockRes, (err) => {
+                    assert.equal(err, undefined, 'Request should succeed despite hook error');
+                    setTimeout(() => {
+                        assert.ok(errorLogged, 'Error should have been logged');
+                        done();
+                    }, 10);
+                });
+            });
+
+            it('should catch and log rejections from non-native thenable returned by onRejected', done => {
+                let errorLogged = false;
+                console.error = (...args) => {
+                    if (args[0]?.includes?.('hook error')) {
+                        errorLogged = true;
+                    }
+                };
+
+                const middleware = clientCertificateAuth(() => false, {
+                    onRejected: () => ({
+                        then(_resolve, reject) {
+                            reject(new Error('Custom thenable explosion'));
+                        }
+                    })
+                });
+
+                middleware(mockGoodReq, mockRes, (err) => {
+                    assert.equal(err?.status, 401, 'Callback returning false should produce 401');
+                    setTimeout(() => {
+                        assert.ok(errorLogged, 'Error should have been logged');
+                        done();
+                    }, 10);
+                });
+            });
+
             it('should call onRejected when cert cannot be retrieved', done => {
                 let hookArgs = null;
                 const reqEmptyCert = {
