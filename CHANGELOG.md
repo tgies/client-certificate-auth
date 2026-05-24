@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.6] - 2026-05-23
+
+### Fixed
+
+- **Non-native thenables adopted via `Promise.resolve`** (backport of [#125](https://github.com/tgies/client-certificate-auth/pull/125)) — `safeCallHook` and the validation callback path both gated on `result instanceof Promise`, so non-native thenables returned from hooks or callbacks slipped past the guard. Hook rejections surfaced as unhandled rejections; callback thenables fell through to the sync resolution branch. Both now use a new `isThenable` helper wrapped in `Promise.resolve(...)`. Applied in both ESM and CJS.
+- **`allowFingerprints` strips colon delimiters** (backport of [#126](https://github.com/tgies/client-certificate-auth/pull/126)) — `cert.fingerprint` and `cert.fingerprint256` from Node's `toLegacyObject()` are colon-delimited uppercase hex, but `allowFingerprints` only uppercased its inputs. Callers passing contiguous hex (`ABCDEF...`) silently failed to match a cert whose fingerprint was `AB:CD:EF...`. Both sides now normalize with `toUpperCase().replace(/:/g, '')`, matching `allowSerial`.
+
 ## [1.3.5] - 2026-05-19
 
 ### Security
@@ -212,6 +219,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix handling of empty certificates
 - Unit testing with mocks
 
+[1.3.6]: https://github.com/tgies/client-certificate-auth/compare/v1.3.5...v1.3.6
+[1.3.5]: https://github.com/tgies/client-certificate-auth/compare/v1.3.4...v1.3.5
 [1.3.4]: https://github.com/tgies/client-certificate-auth/compare/v1.3.3...v1.3.4
 [1.3.3]: https://github.com/tgies/client-certificate-auth/compare/v1.3.2...v1.3.3
 [1.3.2]: https://github.com/tgies/client-certificate-auth/compare/v1.3.1...v1.3.2
