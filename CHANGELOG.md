@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026-05-20
+
+### Added
+
+- **`azure-app-service` preset** — Azure App Service forwards the validated client certificate as the body of a PEM cert (bare base64 DER, no delimiters) in the `X-ARR-ClientCert` header. The new preset pairs that header name with the existing `base64-der` encoding. The same header convention is used by IIS/ARR generally; Azure Application Gateway and Azure API Management use different formats and remain documentation-only for now.
+- **`cloudflare-rfc9440` preset** — Cloudflare's March 2026 mTLS forwarding update introduced first-class RFC 9440 support, setting the standard `Client-Cert` and `Client-Cert-Chain` request headers via Transform Rules. The new preset pairs the standard header names with the existing `rfc9440` encoding and ships alongside the existing `cloudflare` preset (which continues to read the legacy `Cf-Client-Cert-Der-Base64` family).
+- **`aws-alb-verify` preset** — AWS ALB in mTLS verify mode emits the validated leaf certificate as URL-encoded PEM in `X-Amzn-Mtls-Clientcert-Leaf` (the leaf only, not the full chain). Pairs that header name with the `url-pem-aws` encoding. Complements the existing `aws-alb` preset for passthrough mode.
+- **`chainHeader` extractor option** — RFC 9440 splits the leaf cert and the cert chain into two separate headers (`Client-Cert` and `Client-Cert-Chain`). The extractor now accepts an optional `chainHeader` paired with `certificateHeader` (or supplied automatically by a preset). The chain header's value is split on commas per RFC 9440 structured-field list semantics, each item parsed with the same `headerEncoding`, and the resulting certificates linked via `issuerCertificate` after the leaf. Primary use case is RFC 9440-style two-header schemes; the same option is available for custom two-header configurations.
+- **`client-certificate-auth/lambda` subpath** — `extractClientCertificateFromLambdaEvent(event)` extracts the validated client certificate from an AWS API Gateway Lambda event. Handles both v2.0 (HTTP API; `event.requestContext.authentication.clientCert`) and v1.0 (REST API; `event.requestContext.identity.clientCert`) payload formats. Returns the same `ExtractionResult` shape as the core extractor for cross-call uniformity. New rejection reasons: `lambda_event_missing_clientcert`, `lambda_event_clientcert_malformed`.
+- **`client-certificate-auth/fetch` subpath** — `extractClientCertificateFromRequest(request, options)` extracts the client certificate from a Web standard `Request` (or any object whose `headers` iterates `[name, value]` tuples). Header-only by construction. Works in Hono, Next.js Route Handlers, SvelteKit hooks, Astro middleware, Remix loaders, Cloudflare Workers, `Bun.serve`, `Deno.serve`, and any other runtime that exposes a Web Request.
+
+### Types
+
+- `CertificateSource` union widened with the three new preset names (`aws-alb-verify`, `azure-app-service`, `cloudflare-rfc9440`).
+- `PresetConfig` gains an optional `chainHeader` field for two-header schemes.
+- `ClientCertificateAuthOptions` and `ExtractorOptions` gain an optional `chainHeader` field.
+- New exports `LambdaEventWithClientCert`, `LambdaClientCert`, `LambdaExtractionResult` from `client-certificate-auth/lambda`.
+- New export `RequestLike` from `client-certificate-auth/fetch`.
+
+### Tests
+
+- Added 23 unit tests across `test-unit-parsers.js` (new preset entries) and `test-unit-extractor.js` (per-preset E2E, chainHeader validation, chainHeader behavior, chain linking, malformed chain entries, override semantics).
+- Added 11 unit tests for the Lambda subpath in `test-unit-lambda.js` (v1 / v2 / both / missing fields / malformed PEM / null event).
+- Added 11 unit tests for the Fetch subpath in `test-unit-fetch.js` (per-preset extraction from a Web `Request`, plain header-iterable objects, `verifyHeader`/`verifyValue`, chain extraction, header-only guarantee).
+- Added TypeScript type tests covering the new preset names, `chainHeader` option, Lambda helper signature, and Fetch helper signature.
+
 ## [2.0.2] - 2026-05-23
 
 ### Fixed
