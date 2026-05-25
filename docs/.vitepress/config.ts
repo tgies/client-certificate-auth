@@ -6,6 +6,19 @@ export default defineConfig({
   base: '/client-certificate-auth/',
   srcExclude: ['**/plans/**', '**/superpowers/**'],
 
+  transformHead({ assets }) {
+    const preloads = [
+      /AtkinsonHyperlegibleNext-VariableFont_wght\.[\w-]+\.woff2$/,
+      /AtkinsonHyperlegibleMono-VariableFont_wght\.[\w-]+\.woff2$/,
+    ]
+    return preloads.flatMap((re) => {
+      const href = assets.find((file) => re.test(file))
+      return href
+        ? [['link', { rel: 'preload', href, as: 'font', type: 'font/woff2', crossorigin: '' }] as const]
+        : []
+    })
+  },
+
   themeConfig: {
     nav: [
       { text: 'Guide', link: '/guide/getting-started' },

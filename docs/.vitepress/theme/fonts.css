@@ -1,0 +1,39 @@
+@font-face {
+  font-family: 'Atkinson Hyperlegible Next';
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url('./fonts/AtkinsonHyperlegibleNext-VariableFont_wght.woff2') format('woff2-variations');
+}
+
+@font-face {
+  font-family: 'Atkinson Hyperlegible Next';
+  font-style: italic;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url('./fonts/AtkinsonHyperlegibleNext-Italic-VariableFont_wght.woff2') format('woff2-variations');
+}
+
+@font-face {
+  font-family: 'Atkinson Hyperlegible Mono';
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url('./fonts/AtkinsonHyperlegibleMono-VariableFont_wght.woff2') format('woff2-variations');
+}
+
+@font-face {
+  font-family: 'Atkinson Hyperlegible Mono';
+  font-style: italic;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url('./fonts/AtkinsonHyperlegibleMono-Italic-VariableFont_wght.woff2') format('woff2-variations');
+}
+
+:root {
+  --vp-font-family-base: 'Atkinson Hyperlegible Next', ui-sans-serif, system-ui,
+    sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
+    'Noto Color Emoji';
+  --vp-font-family-mono: 'Atkinson Hyperlegible Mono', ui-monospace,
+    'SFMono-Regular', 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+}
