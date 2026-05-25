@@ -3,6 +3,13 @@ name: Mutation Testing
 on:
   push:
     branches: [main, master]
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/FUNDING.yml'
+      - 'LICENSE'
+      - 'typedoc.json'
 
 concurrency:
   group: mutation-${{ github.ref }}
