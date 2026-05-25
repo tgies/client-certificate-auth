@@ -99,7 +99,7 @@
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.2",
-    "@commitlint/cli": "^20.4.3",
+    "@commitlint/cli": "^21.0.0",
     "@commitlint/config-conventional": "^20.5.0",
     "@eslint/js": "^10.0.1",
     "@stryker-mutator/core": "^9.6.0",
