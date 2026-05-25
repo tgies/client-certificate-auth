@@ -1,0 +1,27 @@
+:root {
+  --vp-c-brand-1: #8b1538;
+  --vp-c-brand-2: #6b0f2a;
+  --vp-c-brand-3: #a8324d;
+  --vp-c-brand-soft: #8b153826;
+  --vp-c-bg: #faf7f2;
+  --vp-c-bg-alt: #f0ebe3;
+  --vp-c-text-1: #1a1410;
+}
+.dark {
+  --vp-c-bg: #1a1410;
+  --vp-c-bg-alt: #221814;
+  --vp-c-bg-elv: #2a1f1a;
+  --vp-c-bg-soft: #2a1f1a;
+  --vp-c-text-1: #f0e6d6;
+  --vp-c-text-2: #c9b896;
+  --vp-c-brand-1: #d4a373;
+  --vp-c-brand-2: #e2b88a;
+  --vp-c-brand-3: #b88758;
+  --vp-c-brand-soft: #d4a37326;
+}
+.vp-doc h2 {
+  border-top: 1px solid var(--vp-c-divider);
+  padding-top: 28px;
+  margin-top: 56px;
+  letter-spacing: -0.015em;
+}
