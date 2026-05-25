@@ -49,6 +49,8 @@ export default defineConfig({
           { text: 'helpers', link: '/api/helpers/' },
           { text: 'parsers', link: '/api/parsers/' },
           { text: 'extractor', link: '/api/extractor/' },
+          { text: 'fetch', link: '/api/fetch/' },
+          { text: 'lambda', link: '/api/lambda/' },
         ],
       },
       {
