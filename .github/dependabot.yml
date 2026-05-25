@@ -11,6 +11,7 @@ updates:
       timezone: "America/Chicago"
     versioning-strategy: "increase-if-necessary"
     cooldown:
+      default-days: 7
       semver-major-days: 14
     groups:
       npm-dev-tools:
@@ -36,6 +37,9 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 0
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
 
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -44,6 +48,8 @@ updates:
       day: "monday"
       time: "09:30"
       timezone: "America/Chicago"
+    cooldown:
+      default-days: 7
     groups:
       github-actions:
         patterns:
