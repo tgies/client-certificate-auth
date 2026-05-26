@@ -15,7 +15,7 @@ import { generateClientCertificate, pemToDer } from './test-helpers.js';
 
 /**
  * Test Fixture Generator
- * 
+ *
  * These encoding functions match what real proxies produce according to
  * their official documentation. Each function cites its authoritative source.
  */
@@ -774,6 +774,16 @@ describe('parsers module', () => {
             const encoded = encodeAsAwsAlb(testPem);
             const headers = { 'x-amzn-mtls-clientcert': [encoded, encoded] };
             const cert = getCertificateFromHeaders(headers, { certificateSource: 'aws-alb' });
+            assert.equal(cert, null);
+        });
+
+        it('should reject single-element string[] before parsing', () => {
+            const encoded = encodeAsNginx(testPem);
+            const headers = { 'x-custom-cert': [encoded] };
+            const cert = getCertificateFromHeaders(headers, {
+                certificateHeader: 'X-Custom-Cert',
+                headerEncoding: 'url-pem',
+            });
             assert.equal(cert, null);
         });
     });
