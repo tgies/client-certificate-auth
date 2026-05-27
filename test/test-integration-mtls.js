@@ -11,7 +11,7 @@ import {
     allOf,
     anyOf,
 } from '../lib/helpers.js';
-import { generateMtlsCertificates } from './test-helpers.js';
+import { generateIntermediateChain, generateMtlsCertificates } from './test-helpers.js';
 
 /**
  * Integration tests that establish real mTLS connections.
@@ -440,6 +440,138 @@ describe('Helpers mTLS Integration', () => {
             ));
             const result = await makeRequest();
             assert.equal(result.status, 401);
+        });
+    });
+});
+
+describe('includeChain mTLS Integration', () => {
+
+    let caPems;
+    let serverPems;
+    let chainClientPems;
+    let server;
+    let serverPort;
+    let capturedCert;
+
+    beforeAll(async () => {
+        const certs = await generateMtlsCertificates();
+        caPems = certs.ca;
+        serverPems = certs.server;
+        const chain = await generateIntermediateChain(
+            { cert: caPems.cert, key: caPems.key },
+        );
+        // Client presents leaf + intermediate so the server can walk the chain
+        // to the trusted root CA.
+        chainClientPems = {
+            key: chain.client.key,
+            cert: `${chain.client.cert}\n${chain.intermediate.cert}`,
+        };
+    });
+
+    function startServer(middlewareOptions, done) {
+        capturedCert = null;
+        server = https.createServer(
+            {
+                key: serverPems.key,
+                cert: serverPems.cert,
+                ca: [caPems.cert],
+                requestCert: true,
+                rejectUnauthorized: false,
+            },
+            (req, res) => {
+                const middleware = clientCertificateAuth(
+                    (cert) => {
+                        capturedCert = cert;
+                        return cert.subject.CN === 'Test Chain Client';
+                    },
+                    middlewareOptions,
+                );
+                middleware(req, res, (err) => {
+                    if (err) {
+                        res.writeHead(err.status || 500);
+                        res.end(JSON.stringify({ error: err.message }));
+                    } else {
+                        res.writeHead(200);
+                        res.end(JSON.stringify({ success: true }));
+                    }
+                });
+            },
+        );
+        server.listen(0, 'localhost', () => {
+            serverPort = server.address().port;
+            done();
+        });
+    }
+
+    afterEach(done => {
+        server.close(done);
+    });
+
+    function makeChainRequest(onResponse) {
+        const req = https.request(
+            {
+                hostname: 'localhost',
+                port: serverPort,
+                path: '/',
+                method: 'GET',
+                key: chainClientPems.key,
+                cert: chainClientPems.cert,
+                ca: [caPems.cert],
+                rejectUnauthorized: true,
+            },
+            onResponse,
+        );
+        return req;
+    }
+
+    it('exposes issuerCertificate chain when includeChain is true', done => {
+        startServer({ includeChain: true }, () => {
+            const req = makeChainRequest((res) => {
+                res.resume();
+                res.on('end', () => {
+                    try {
+                        assert.equal(res.statusCode, 200);
+                        assert.ok(capturedCert, 'validation callback was not invoked');
+                        assert.equal(capturedCert.subject.CN, 'Test Chain Client');
+                        const issuer = capturedCert.issuerCertificate;
+                        assert.ok(issuer, 'cert.issuerCertificate should be present');
+                        assert.equal(issuer.subject.CN, 'Test Intermediate CA');
+                        const root = issuer.issuerCertificate;
+                        assert.ok(root, 'intermediate.issuerCertificate should be present');
+                        assert.equal(root.subject.CN, 'Test CA');
+                        done();
+                    } catch (err) {
+                        done(err);
+                    }
+                });
+            });
+            req.on('error', done);
+            req.end();
+        });
+    });
+
+    it('omits issuerCertificate when includeChain is not set', done => {
+        startServer({}, () => {
+            const req = makeChainRequest((res) => {
+                res.resume();
+                res.on('end', () => {
+                    try {
+                        assert.equal(res.statusCode, 200);
+                        assert.ok(capturedCert);
+                        assert.equal(capturedCert.subject.CN, 'Test Chain Client');
+                        assert.equal(
+                            capturedCert.issuerCertificate,
+                            undefined,
+                            'issuerCertificate should not be exposed when includeChain is unset',
+                        );
+                        done();
+                    } catch (err) {
+                        done(err);
+                    }
+                });
+            });
+            req.on('error', done);
+            req.end();
         });
     });
 });
