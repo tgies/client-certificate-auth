@@ -174,6 +174,48 @@ describe('clientCertificateAuth (CommonJS)', () => {
                 });
             });
 
+            it('should wrap a thrown string in a 401 Error', done => {
+                const middleware = clientCertificateAuth(() => {
+                    throw 'cert revoked';
+                });
+                middleware(mockGoodReq, mockRes, (err) => {
+                    assert.ok(err instanceof Error);
+                    assert.equal(err.message, 'cert revoked');
+                    assert.equal(err.status, 401);
+                    done();
+                });
+            });
+
+            it('should wrap a thrown null in a 401 Error', done => {
+                const middleware = clientCertificateAuth(() => {
+                    throw null;
+                });
+                middleware(mockGoodReq, mockRes, (err) => {
+                    assert.ok(err instanceof Error);
+                    assert.equal(err.status, 401);
+                    done();
+                });
+            });
+
+            it('should wrap a string async rejection in a 401 Error', done => {
+                const middleware = clientCertificateAuth(() => Promise.reject('cert revoked'));
+                middleware(mockGoodReq, mockRes, (err) => {
+                    assert.ok(err instanceof Error);
+                    assert.equal(err.message, 'cert revoked');
+                    assert.equal(err.status, 401);
+                    done();
+                });
+            });
+
+            it('should wrap a null async rejection in a 401 Error', done => {
+                const middleware = clientCertificateAuth(() => Promise.reject(null));
+                middleware(mockGoodReq, mockRes, (err) => {
+                    assert.ok(err instanceof Error);
+                    assert.equal(err.status, 401);
+                    done();
+                });
+            });
+
             it('should set status = 401 on thrown sync errors', done => {
                 const middleware = clientCertificateAuth(() => {
                     throw new Error('Certificate revoked');
@@ -499,6 +541,40 @@ describe('clientCertificateAuth (CommonJS)', () => {
                     setImmediate(() => {
                         assert.ok(hookArgs, 'onRejected should have been called');
                         assert.equal(hookArgs.reason, 'callback_threw');
+                        done();
+                    });
+                });
+            });
+
+            it('should use fallback reason when callback throws null', done => {
+                let hookArgs = null;
+                const middleware = clientCertificateAuth(() => {
+                    throw null;
+                }, {
+                    onRejected: (cert, req, reason) => { hookArgs = { cert, req, reason }; }
+                });
+
+                middleware(mockGoodReq, mockRes, () => {
+                    setImmediate(() => {
+                        assert.ok(hookArgs, 'onRejected should have been called');
+                        assert.equal(hookArgs.reason, 'callback_threw');
+                        done();
+                    });
+                });
+            });
+
+            it('should pass a thrown string to onRejected as the reason', done => {
+                let hookArgs = null;
+                const middleware = clientCertificateAuth(() => {
+                    throw 'cert revoked';
+                }, {
+                    onRejected: (cert, req, reason) => { hookArgs = { cert, req, reason }; }
+                });
+
+                middleware(mockGoodReq, mockRes, () => {
+                    setImmediate(() => {
+                        assert.ok(hookArgs, 'onRejected should have been called');
+                        assert.equal(hookArgs.reason, 'cert revoked');
                         done();
                     });
                 });
