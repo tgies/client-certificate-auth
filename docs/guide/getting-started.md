@@ -1,5 +1,25 @@
 # Getting Started
 
+## What This Library Does
+
+This library authenticates HTTP clients by their TLS client certificates, a scheme usually called mutual TLS (mTLS). Instead of presenting a password, API key, or bearer token, the client presents an X.509 certificate during the TLS handshake and proves possession of its private key; the server checks that the certificate was issued by a CA it trusts. The certificate is the credential.
+
+Typical uses:
+
+- **Service-to-service APIs**: internal microservices or partner integrations where each caller holds its own certificate rather than a shared secret.
+- **Machine and device authentication**: CI runners, IoT devices, daemons. Certificates are issued per machine and revoked per machine.
+- **Restricting sensitive endpoints**: admin interfaces, metrics, internal tooling that only known clients should reach.
+- **Certificate-based user login**: enterprise PKI and smart-card environments, where certificates map to user accounts.
+
+The TLS handshake proves who the client is; your application decides whether that client is allowed in. This library covers the part in between: it extracts the verified certificate from the request wherever your TLS terminates, parses it into a standard [`tls.PeerCertificate`](https://nodejs.org/api/tls.html#certificate-object) object, and passes it to your authorization callback. Supported certificate sources:
+
+- **TLS terminated directly in Node.js**: the certificate is read from the TLS socket. Covered on this page.
+- **A TLS-terminating reverse proxy or load balancer** that forwards the certificate in an HTTP header: AWS ALB, Envoy/Istio, Cloudflare, Traefik, Azure App Service, nginx, HAProxy, and any proxy that implements RFC 9440. See [Reverse Proxy Support](./reverse-proxy).
+- **AWS Lambda** behind API Gateway mTLS. See [AWS Lambda](./lambda).
+- **Web-standard `Request` runtimes** such as Hono, Next.js, SvelteKit, Cloudflare Workers, Bun, and Deno. See [Fetch / Web Request](./fetch).
+
+Express and Connect get drop-in middleware. Other frameworks use the same extraction logic through [`extractClientCertificate()`](#extractclientcertificate-req-options). Pre-built [authorization helpers](./helpers) cover the common policies (allowlist by CN, fingerprint, issuer, OU, SAN, and more).
+
 ## Installation
 
 ```bash
@@ -7,14 +27,6 @@ npm install client-certificate-auth
 ```
 
 **Requirements:** Node.js >= 20
-
-## What This Library Does
-
-This library provides everything you need to implement mutual TLS (mTLS) authentication in Node.js. It extracts client certificates from direct TLS connections (`req.socket`) or from HTTP headers forwarded by reverse proxies (AWS ALB, Envoy, Cloudflare, Traefik, nginx, HAProxy).
-
-The certificate is parsed into a standard `tls.PeerCertificate` object and passed to your callback for authorization logic.
-
-Compatible with Express, Connect, or any Node.js HTTP server framework by using the framework-agnostic `extractClientCertificate` function.
 
 ## Basic Setup
 
