@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.1] - 2026-06-11
+
+### Fixed
+
+- **Non-Error callback throws/rejections wrapped before `next()`** — a validation callback that threw or rejected with a primitive (a string, `null`) hit a `TypeError` in the middleware's error path: reading `.message` on `null`, or assigning `.status` on a string primitive. The sync path surfaced the `TypeError` to the framework as a 500 instead of a 401; the async path threw inside the promise rejection handler, leaving the rejection unhandled (fatal under Node's default `--unhandled-rejections=throw`). Primitive values are now wrapped in an `Error` (string values become the message) before hook dispatch and `next()`; objects, including `Error`s, pass through unchanged. Applied identically in the ESM and CJS modules.
+
 ## [2.1.0] - 2026-05-20
 
 ### Added
