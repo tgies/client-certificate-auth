@@ -1,6 +1,8 @@
 # client-certificate-auth
 
-Comprehensive toolkit for client SSL certificate authentication (mTLS) in Node.js. Includes Express/Connect middleware, framework-agnostic certificate extraction for reverse proxies (AWS ALB, Envoy, Cloudflare, Traefik, and more), and pre-built authorization helpers.
+Comprehensive zero-dependency toolkit for client SSL certificate authentication (mTLS) in Node.js. Includes Express/Connect middleware, framework-agnostic certificate extraction for reverse proxies (AWS ALB, Envoy, Cloudflare, Traefik, and more), and pre-built authorization helpers.
+
+This library lets you make additional auth decisions based on specific information within a client certificate after the client certificate is accepted at the socket level (i.e. by Node's `https` or a reverse proxy). This allows for fine-grained access control on top of the all-or-nothing allow/deny access control afforded by basic mTLS.
 
 [![CI](https://github.com/tgies/client-certificate-auth/actions/workflows/ci.yml/badge.svg)](https://github.com/tgies/client-certificate-auth/actions/workflows/ci.yml)
 [![npm version](https://img.shields.io/npm/v/client-certificate-auth.svg)](https://www.npmjs.com/package/client-certificate-auth)
@@ -15,9 +17,13 @@ Comprehensive toolkit for client SSL certificate authentication (mTLS) in Node.j
 
 **Fanatically Tested** - 100% line/branch/function/statement coverage, plus mutation testing and E2E tests against real nginx/Envoy/Traefik containers. ~6,207 lines of test code for ~937 lines of source (measured by [cloc](https://github.com/AlDanial/cloc)).
 
+**Maintained since 2013** - Originally released for Node 0.10!
+
+**Zero runtime dependencies** - Entirely self-contained, with straightforward, readable logic, no behavior hidden inside dependencies, no bloat, and no transitive-dependency security headaches.
+
 ## What Is This?
 
-This library authenticates HTTP clients by their TLS client certificates, a scheme usually called mutual TLS (mTLS). Instead of presenting a password, API key, or bearer token, the client presents an X.509 certificate during the TLS handshake and proves possession of its private key; the server checks that the certificate was issued by a CA it trusts. The certificate is the credential.
+This library authenticates HTTP clients by their TLS client certificates, a scheme usually called mutual TLS (mTLS). Instead of presenting a password, API key, or bearer token, the client presents an X.509 certificate during the TLS handshake and proves possession of its private key; the server checks that the certificate was issued by a CA it trusts. The certificate is the credential. The certificate signature verification is typically accomplished at the socket level by Node's `https` or a reverse proxy; this library's purpose is to allow you to easily inspect the properties of a verified certificate and make fine-grained access control decisions based on them.
 
 Typical uses:
 
