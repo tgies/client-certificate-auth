@@ -228,6 +228,45 @@ describe('extractClientCertificateFromRequest', () => {
     });
   });
 
+  describe('prototype pollution resistance', () => {
+    it('should not mutate Object.prototype when iterating __proto__ header', () => {
+      // __proto__ as a header name must be treated as a regular header, not
+      // allowed to mutate the prototype of the internal headers object.
+      const headers = new Map([
+        ['x-custom', 'value1'],
+        ['__proto__', 'malicious'],
+        ['client-cert', encodeAsRfc9440(testDer)],
+      ]);
+
+      const result = extractClientCertificateFromRequest({ headers }, {
+        certificateSource: 'cloudflare-rfc9440',
+      });
+
+      // Certificate should still be extracted successfully
+      assert.strictEqual(result.success, true);
+      assert.strictEqual(result.certificate.subject.CN, 'fetch.example.com');
+
+      // Object.prototype must not be polluted
+      assert.strictEqual(Object.prototype.__proto__, null);
+    });
+
+    it('should not throw when headers iterable yields __proto__', () => {
+      // Even with a non-Map iterable that yields __proto__, the adapter
+      // must not throw or corrupt the headers collection.
+      const headers = new Map([
+        ['__proto__', 'malicious'],
+        ['client-cert', encodeAsRfc9440(testDer)],
+      ]);
+
+      assert.doesNotThrow(() => {
+        const result = extractClientCertificateFromRequest({ headers }, {
+          certificateSource: 'cloudflare-rfc9440',
+        });
+        assert.strictEqual(result.success, true);
+      });
+    });
+  });
+
   describe('header-only behavior', () => {
     it('should never access a socket field even if one is present on the request', () => {
       const headers = new Headers();
