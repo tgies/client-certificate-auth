@@ -213,6 +213,24 @@ describe('extractClientCertificateFromRequest', () => {
       assert.strictEqual(result.certificate.subject.CN, 'fetch.example.com');
     });
 
+    it('should not be affected by Object.prototype properties when a header name collides', () => {
+      // `__proto__` will exist as a magic setter if the headers object isn't
+      // defined as a bare dictionary (i.e. via `Object.create(null)`), causing
+      // this to fail. The asserted behavior is that setting a property called
+      // `__proto__` just creates a string-valued property called `__proto__`.
+      const headers = new Map([
+        ['__proto__', encodeAsRfc9440(testDer)],
+      ]);
+
+      const result = extractClientCertificateFromRequest({ headers }, {
+        certificateHeader: '__proto__',
+        headerEncoding: 'rfc9440',
+      });
+
+      assert.strictEqual(result.success, true);
+      assert.strictEqual(result.certificate.subject.CN, 'fetch.example.com');
+    });
+
     it('should normalize header names to lowercase for the RequestLike Map path', () => {
       // Map preserves casing; mixed-case keys need lowercasing.
       const headers = new Map([
