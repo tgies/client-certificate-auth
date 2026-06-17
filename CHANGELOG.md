@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.2] - 2026-06-17
+
+### Fixed
+
+- **Fetch adapter header object inherits `Object.prototype`** — `extractClientCertificateFromRequest` built its internal header lookup table with a plain `{}`, so header names that collide with inherited `Object.prototype` properties (`constructor`, `toString`, `valueOf`, etc.) resolved to the inherited function instead of `undefined` or the actual header value, causing the downstream parser to receive a function and return `null`. `headers` now uses `Object.create(null)`. Credit to @Mayne-X for reporting.
+
+### Tests
+
+- Added a test in `test-unit-fetch.js` that extracts a certificate from a header named `__proto__`, verifying the null-prototype fix.
+
 ## [2.1.1] - 2026-06-11
 
 ### Fixed
@@ -287,6 +297,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix handling of empty certificates
 - Unit testing with mocks
 
+[2.1.2]: https://github.com/tgies/client-certificate-auth/compare/v2.1.1...v2.1.2
+[2.1.1]: https://github.com/tgies/client-certificate-auth/compare/v2.1.0...v2.1.1
+[2.1.0]: https://github.com/tgies/client-certificate-auth/compare/v2.0.2...v2.1.0
 [2.0.2]: https://github.com/tgies/client-certificate-auth/compare/v2.0.1...v2.0.2
 [2.0.1]: https://github.com/tgies/client-certificate-auth/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/tgies/client-certificate-auth/compare/v1.3.4...v2.0.0
