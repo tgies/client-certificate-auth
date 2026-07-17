@@ -564,6 +564,50 @@ describe('clientCertificateAuth', () => {
         });
       });
 
+      it('should return 401 when certificateHeader collides with an Object.prototype member', done => {
+        // 'constructor' resolves to a function through the prototype chain
+        // of the plain headers object; Node's req.headers is not null-prototype.
+        const req = {
+          secure: false,
+          socket: { authorized: false },
+          headers: {}
+        };
+
+        const middleware = clientCertificateAuth(() => true, {
+          certificateHeader: 'constructor',
+          headerEncoding: 'base64-der'
+        });
+
+        middleware(req, mockRes, (err) => {
+          assert.ok(err instanceof Error);
+          assert.equal(err.status, 401);
+          assert.ok(err.message.includes('header missing or malformed'));
+          done();
+        });
+      });
+
+      it('should return 401 when certificate header value is not a string', done => {
+        const req = {
+          secure: false,
+          socket: { authorized: false },
+          headers: {
+            'x-custom-cert': 123
+          }
+        };
+
+        const middleware = clientCertificateAuth(() => true, {
+          certificateHeader: 'X-Custom-Cert',
+          headerEncoding: 'url-pem'
+        });
+
+        middleware(req, mockRes, (err) => {
+          assert.ok(err instanceof Error);
+          assert.equal(err.status, 401);
+          assert.ok(err.message.includes('header missing or malformed'));
+          done();
+        });
+      });
+
       describe('verifyHeader/verifyValue options', () => {
         it('should reject if verifyHeader is set but header is missing', done => {
           const encodedCert = encodeURIComponent(testPem);
