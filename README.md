@@ -191,8 +191,9 @@ Returns Express middleware.
 | Name | Type | Description |
 |------|------|-------------|
 | `callback` | `(cert, req?) => boolean \| PromiseLike<boolean>` | Receives the client certificate and request, returns `true` to allow access |
-| `options.certificateSource` | `string` | Use a preset for a known proxy: `'aws-alb'`, `'envoy'`, `'cloudflare'`, `'traefik'` |
+| `options.certificateSource` | `string` | Use a preset for a known proxy: `'aws-alb'`, `'aws-alb-verify'`, `'azure-app-service'`, `'cloudflare'`, `'cloudflare-rfc9440'`, `'envoy'`, `'traefik'` |
 | `options.certificateHeader` | `string` | Custom header name to read certificate from |
+| `options.chainHeader` | `string` | Second header carrying the certificate chain alongside the leaf (RFC 9440 style) |
 | `options.headerEncoding` | `string` | Encoding format: `'url-pem'`, `'url-pem-aws'`, `'xfcc'`, `'base64-der'`, `'rfc9440'` |
 | `options.fallbackToSocket` | `boolean` | If header extraction fails, try `socket.getPeerCertificate()` (default: `false`) |
 | `options.includeChain` | `boolean` | If `true`, include full certificate chain via `cert.issuerCertificate` (default: `false`) |
@@ -413,9 +414,19 @@ When your application runs behind a TLS-terminating reverse proxy, the client ce
 For common proxies, use the `certificateSource` option:
 
 ```javascript
-// AWS Application Load Balancer
+// AWS Application Load Balancer (mTLS passthrough)
 app.use(clientCertificateAuth(checkAuth, {
   certificateSource: 'aws-alb'
+}));
+
+// AWS Application Load Balancer (mTLS verify mode)
+app.use(clientCertificateAuth(checkAuth, {
+  certificateSource: 'aws-alb-verify'
+}));
+
+// Azure App Service
+app.use(clientCertificateAuth(checkAuth, {
+  certificateSource: 'azure-app-service'
 }));
 
 // Envoy / Istio
@@ -423,9 +434,14 @@ app.use(clientCertificateAuth(checkAuth, {
   certificateSource: 'envoy'
 }));
 
-// Cloudflare
+// Cloudflare (legacy Cf-Client-Cert-Der-Base64 header)
 app.use(clientCertificateAuth(checkAuth, {
   certificateSource: 'cloudflare'
+}));
+
+// Cloudflare (RFC 9440 Client-Cert / Client-Cert-Chain headers, March 2026+)
+app.use(clientCertificateAuth(checkAuth, {
+  certificateSource: 'cloudflare-rfc9440'
 }));
 
 // Traefik
@@ -436,16 +452,21 @@ app.use(clientCertificateAuth(checkAuth, {
 
 ### Preset Details
 
-| Preset | Header | Encoding |
-|--------|--------|----------|
+| Preset | Header(s) | Encoding |
+|--------|-----------|----------|
 | `aws-alb` | `X-Amzn-Mtls-Clientcert` | URL-encoded PEM (AWS variant) |
-| `envoy` | `X-Forwarded-Client-Cert` | XFCC structured format |
+| `aws-alb-verify` | `X-Amzn-Mtls-Clientcert-Leaf` | URL-encoded PEM (AWS variant) |
+| `azure-app-service` | `X-ARR-ClientCert` | Base64-encoded DER |
 | `cloudflare` | `Cf-Client-Cert-Der-Base64` | Base64-encoded DER |
+| `cloudflare-rfc9440` | `Client-Cert` + `Client-Cert-Chain` | RFC 9440 |
+| `envoy` | `X-Forwarded-Client-Cert` | XFCC structured format |
 | `traefik` | `X-Forwarded-Tls-Client-Cert` | Base64-encoded DER \* |
 
-> \* **Traefik note:** The `traefik` preset targets Traefik v3's `PassTLSClientCert` middleware with `pem: true`. Despite Traefik's docs describing this as "PEM format", the wire format is the base64 body without PEM headers — equivalent to base64-encoded DER. Behavior may differ in Traefik v2.
+> ⚠️ **Passthrough presets do not validate the certificate.** ALB mTLS passthrough mode (`aws-alb`) and Azure App Service (`azure-app-service`) forward whatever certificate the client presented during the handshake, without checking it against a trust store. The middleware parses the certificate, but your callback is responsible for trust verification: matching the issuer against an expected CA, checking the validity window, and checking revocation if applicable. A callback that only checks `cert.subject.CN` (including the `allowCN` helper) will accept any well-formed certificate a client presents. To rely on proxy-side validation instead, use ALB verify mode (`aws-alb-verify`), which validates against a configured trust store, or pin the certificate with `allowFingerprints`.
 
-> **Cloudflare note:** Cloudflare also provides certificates via the `CF-Client-Cert-PEM` header (URL-encoded PEM). If you use that header instead, configure manually with `certificateHeader: 'CF-Client-Cert-PEM'` and `headerEncoding: 'url-pem'`.
+> \* **Traefik note:** The `traefik` preset targets Traefik v3's `PassTLSClientCert` middleware with `pem: true`. Despite Traefik's docs describing this as "PEM format", the wire format is the base64 body without PEM headers, equivalent to base64-encoded DER. This applies to Traefik v2.9.4 and later and all of v3; Traefik 2.8 through 2.9.1 URL-escaped the value, which this preset does not decode.
+
+> **Cloudflare note:** Cloudflare also provides certificates via the `CF-Client-Cert-PEM` header (URL-encoded PEM). If you use that header instead, configure manually with `certificateHeader: 'CF-Client-Cert-PEM'` and `headerEncoding: 'url-pem'`. For the RFC 9440 forwarding feature (March 2026 and later), use the `cloudflare-rfc9440` preset, which pairs the `Client-Cert` header with `Client-Cert-Chain` via the `chainHeader` option.
 
 ### Custom Headers
 
@@ -458,9 +479,9 @@ app.use(clientCertificateAuth(checkAuth, {
   headerEncoding: 'url-pem'
 }));
 
-// Google Cloud Load Balancer (RFC 9440)
+// Google Cloud Load Balancer (custom header populated from {client_cert_leaf}, RFC 9440)
 app.use(clientCertificateAuth(checkAuth, {
-  certificateHeader: 'X-SSL-Whatever-You-Use',
+  certificateHeader: 'X-Client-Cert-Leaf',
   headerEncoding: 'rfc9440'
 }));
 
@@ -475,11 +496,13 @@ app.use(clientCertificateAuth(checkAuth, {
 
 | Encoding | Description | Used By |
 |----------|-------------|---------|
-| `url-pem` | URL-encoded PEM certificate | nginx, HAProxy |
+| `url-pem` | URL-encoded PEM certificate | nginx (`$ssl_client_escaped_cert`) |
 | `url-pem-aws` | URL-encoded PEM (AWS variant, `+` as safe char) | AWS ALB |
 | `xfcc` | Envoy's structured `Key=Value;...` format | Envoy, Istio |
-| `base64-der` | Base64-encoded DER certificate | Cloudflare, Traefik |
-| `rfc9440` | RFC 9440 format: `:base64-der:` | Google Cloud LB |
+| `base64-der` | Base64-encoded DER certificate | Cloudflare, Traefik, Azure App Service, HAProxy (`ssl_c_der,base64`) |
+| `rfc9440` | RFC 9440 format: `:base64-der:` | Cloudflare (RFC 9440 forwarding), Google Cloud LB |
+
+HAProxy's native certificate forwarding (`http-request set-header ... %[ssl_c_der,base64]`) is base64 DER, so pair it with `base64-der`. HAProxy has no built-in URL-encoded-PEM output; `url-pem` from HAProxy requires a custom Lua `url_enc` converter.
 
 ### Fallback Mode
 
