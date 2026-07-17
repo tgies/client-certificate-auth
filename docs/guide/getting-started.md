@@ -178,8 +178,9 @@ Returns Express middleware that extracts a client certificate and passes it to y
 | Name | Type | Description |
 |------|------|-------------|
 | `callback` | `(cert, req?) => boolean \| PromiseLike<boolean>` | Receives the client certificate and request, returns `true` to allow access |
-| `options.certificateSource` | `string` | Use a preset for a known proxy: `'aws-alb'`, `'envoy'`, `'cloudflare'`, `'traefik'` |
+| `options.certificateSource` | `string` | Use a preset for a known proxy: `'aws-alb'`, `'aws-alb-verify'`, `'azure-app-service'`, `'cloudflare'`, `'cloudflare-rfc9440'`, `'envoy'`, `'traefik'` |
 | `options.certificateHeader` | `string` | Custom header name to read certificate from |
+| `options.chainHeader` | `string` | Second header carrying the certificate chain alongside the leaf (RFC 9440 style) |
 | `options.headerEncoding` | `string` | Encoding format: `'url-pem'`, `'url-pem-aws'`, `'xfcc'`, `'base64-der'`, `'rfc9440'` |
 | `options.fallbackToSocket` | `boolean` | If header extraction fails, try `socket.getPeerCertificate()` (default: `false`) |
 | `options.includeChain` | `boolean` | If `true`, include full certificate chain via `cert.issuerCertificate` (default: `false`) |

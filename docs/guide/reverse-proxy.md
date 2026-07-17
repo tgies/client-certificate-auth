@@ -58,7 +58,7 @@ Each preset maps to a specific header name and encoding format:
 | `traefik` | `X-Forwarded-Tls-Client-Cert` | Base64-encoded DER \* |
 
 ::: tip Traefik note
-The `traefik` preset targets Traefik v3's `PassTLSClientCert` middleware with `pem: true`. Despite Traefik's docs describing this as "PEM format", the wire format is the base64 body without PEM headers — equivalent to base64-encoded DER. Behavior may differ in Traefik v2.
+The `traefik` preset targets Traefik v3's `PassTLSClientCert` middleware with `pem: true`. Despite Traefik's docs describing this as "PEM format", the wire format is the base64 body without PEM headers, equivalent to base64-encoded DER. This applies to Traefik v2.9.4 and later and all of v3; Traefik 2.8 through 2.9.1 URL-escaped the value, which this preset does not decode.
 :::
 
 ::: tip Cloudflare note
@@ -77,6 +77,12 @@ Azure Application Gateway uses the same header name via a rewrite rule on the `{
 App Service forwards whatever certificate the client presents during the TLS handshake. It does not check the certificate against a configured trust store. The middleware can parse the certificate out of the header, but your validation callback is responsible for full trust verification: matching the issuer against an expected CA, checking the validity window, checking revocation if applicable, and any application-level subject checks. A callback that only checks `cert.subject.CN` will accept any well-formed certificate any client cares to present.
 
 If you need ALB-style "the proxy already validated the cert" semantics on Azure, configure validation at the Application Gateway or API Management layer ahead of App Service, or run client cert validation in your application code against a trust store you control.
+:::
+
+::: warning ALB passthrough mode does not validate the client certificate
+The `aws-alb` preset targets ALB mTLS **passthrough** mode, where ALB forwards the certificate chain the client presented without checking it against a trust store. As with Azure App Service above, your validation callback owns trust verification, and a callback that only checks `cert.subject.CN` (including the `allowCN` helper) will accept any well-formed certificate a client presents.
+
+The `aws-alb-verify` preset targets ALB mTLS **verify** mode, where ALB validates the client certificate against a configured trust store before forwarding the leaf. In verify mode the proxy has already established trust, so subject checks in your callback are an authorization layer on top of a validated certificate rather than the only line of defense. When you cannot use verify mode, pin the certificate with `allowFingerprints` instead of matching on subject fields.
 :::
 
 ## Custom Headers
@@ -115,11 +121,13 @@ The library supports five encoding formats covering all major reverse proxies:
 
 | Encoding | Description | Used By |
 |----------|-------------|---------|
-| `url-pem` | URL-encoded PEM certificate | nginx, HAProxy |
+| `url-pem` | URL-encoded PEM certificate | nginx (`$ssl_client_escaped_cert`) |
 | `url-pem-aws` | URL-encoded PEM (AWS variant, `+` as safe char) | AWS ALB |
 | `xfcc` | Envoy's structured `Key=Value;...` format | Envoy, Istio |
-| `base64-der` | Base64-encoded DER certificate | Cloudflare, Traefik, Azure App Service, Caddy |
+| `base64-der` | Base64-encoded DER certificate | Cloudflare, Traefik, Azure App Service, Caddy, HAProxy (`ssl_c_der,base64`) |
 | `rfc9440` | RFC 9440 format: `:base64-der:` | Cloudflare (RFC 9440 forwarding), Google Cloud LB |
+
+HAProxy's native certificate forwarding (`http-request set-header ... %[ssl_c_der,base64]`) is base64 DER, so pair it with `base64-der`. HAProxy has no built-in URL-encoded-PEM output; `url-pem` from HAProxy requires a custom Lua `url_enc` converter.
 
 ## Chain Header
 
