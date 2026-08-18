@@ -636,6 +636,14 @@ describe('parsers module', () => {
             assert.equal(parseHeaderValue('test', 'unknown-encoding'), null);
         });
 
+        it('should return null for non-string input', () => {
+            // A header name like 'constructor' resolves to a function on
+            // plain-object header maps.
+            assert.equal(parseHeaderValue(Object, 'base64-der'), null);
+            assert.equal(parseHeaderValue(42, 'url-pem'), null);
+            assert.equal(parseHeaderValue(null, 'xfcc'), null);
+        });
+
         it('should return null for url-pem with empty input', () => {
             // Explicitly tests url-pem case in switch (kills switch body mutation)
             assert.equal(parseHeaderValue('', 'url-pem'), null);
