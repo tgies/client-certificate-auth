@@ -115,7 +115,7 @@
     "selfsigned": "^5.5.0",
     "typedoc": "^0.28.19",
     "typedoc-plugin-markdown": "^4.11.0",
-    "typescript": "^6.0.3",
+    "typescript": "^7.0.2",
     "vitepress": "^2.0.0-alpha.17",
     "ws": "^8.20.0"
   },
