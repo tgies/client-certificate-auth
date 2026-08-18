@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
+- **Reverse-proxy documentation synced with the v2.1 presets** ([#162](https://github.com/tgies/client-certificate-auth/pull/162)) — the README and getting-started option tables now cover all seven presets and the `chainHeader` option, `aws-alb` passthrough and `azure-app-service` carry a warning that the proxy has not validated the forwarded certificate, the `url-pem` HAProxy attribution is corrected (HAProxy's native format is `base64-der`), and the Traefik base64 wire format is noted as requiring v2.9.4 or newer.
 - **`allowFingerprints` example comment corrected** ([#164](https://github.com/tgies/client-certificate-auth/pull/164)) — the comment claimed the `SHA256:` prefix was optional. An unprefixed value is matched against `cert.fingerprint` (SHA-1); `fingerprint256` is consulted only for `SHA256:`-prefixed entries.
 
 ### Tests
