@@ -21,8 +21,8 @@ app.use(clientCertificateAuth(allowCN(['service-a', 'service-b'])));
 
 // Allowlist by fingerprint
 app.use(clientCertificateAuth(allowFingerprints([
-  'SHA256:AB:CD:EF:...',
-  'AB:CD:EF:...'  // SHA256: prefix optional
+  'SHA256:AB:CD:EF:...',  // matched against cert.fingerprint256
+  'AB:CD:EF:...'          // SHA-1, matched against cert.fingerprint
 ])));
 
 // Allowlist by Organization

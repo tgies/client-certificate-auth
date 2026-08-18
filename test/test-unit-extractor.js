@@ -737,6 +737,71 @@ describe('extractClientCertificate', () => {
         assert.ok(result.certificate);
         assert.strictEqual(result.certificate.issuerCertificate, undefined);
       });
+
+      it('should ignore chain header when its name collides with an Object.prototype member', () => {
+        const leafDer = pemToDer(testPem);
+
+        const req = {
+          headers: {
+            'client-cert': encodeAsRfc9440(leafDer),
+          },
+          socket: { authorized: false },
+        };
+
+        const result = extractClientCertificate(req, {
+          certificateSource: 'cloudflare-rfc9440',
+          chainHeader: 'constructor',
+          includeChain: true,
+        });
+
+        // 'constructor' resolves to a function through the prototype chain
+        // of the plain headers object.
+        assert.strictEqual(result.success, true);
+        assert.ok(result.certificate);
+        assert.strictEqual(result.certificate.issuerCertificate, undefined);
+      });
+
+      it('should ignore chain header when its value is not a string', () => {
+        const leafDer = pemToDer(testPem);
+
+        const req = {
+          headers: {
+            'client-cert': encodeAsRfc9440(leafDer),
+            'client-cert-chain': 42,
+          },
+          socket: { authorized: false },
+        };
+
+        const result = extractClientCertificate(req, {
+          certificateSource: 'cloudflare-rfc9440',
+          includeChain: true,
+        });
+
+        assert.strictEqual(result.success, true);
+        assert.ok(result.certificate);
+        assert.strictEqual(result.certificate.issuerCertificate, undefined);
+      });
+
+      it('should ignore chain header when its value is an empty string', () => {
+        const leafDer = pemToDer(testPem);
+
+        const req = {
+          headers: {
+            'client-cert': encodeAsRfc9440(leafDer),
+            'client-cert-chain': '',
+          },
+          socket: { authorized: false },
+        };
+
+        const result = extractClientCertificate(req, {
+          certificateSource: 'cloudflare-rfc9440',
+          includeChain: true,
+        });
+
+        assert.strictEqual(result.success, true);
+        assert.ok(result.certificate);
+        assert.strictEqual(result.certificate.issuerCertificate, undefined);
+      });
     });
 
     describe('custom header', () => {
