@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.3] - 2026-08-18
+
+### Fixed
+
+- **Non-string certificate header values threw instead of failing closed** ([#163](https://github.com/tgies/client-certificate-auth/pull/163)) — a configured `certificateHeader` or `chainHeader` whose name collides with an `Object.prototype` member (`constructor`, `toString`, ...) resolves to a function on plain-object header maps, and Node's own `req.headers` is not null-prototype. `parseBase64Der` then called `.split()` on that function outside any try/catch, throwing a `TypeError` synchronously out of the middleware: a 500 in Express, an uncaught exception in a bare `http` server, on every request. `parseHeaderValue` now rejects non-string input before dispatching to a parser, and the chain-header block only splits actual strings. Both paths fail closed with `header_missing_or_malformed`.
+
+### Documentation
+
+- **`allowFingerprints` example comment corrected** ([#164](https://github.com/tgies/client-certificate-auth/pull/164)) — the comment claimed the `SHA256:` prefix was optional. An unprefixed value is matched against `cert.fingerprint` (SHA-1); `fingerprint256` is consulted only for `SHA256:`-prefixed entries.
+
+### Tests
+
+- Added coverage for prototype-chain header-name collisions and non-string header values across the middleware, extractor, and parser entry points.
+
 ## [2.1.2] - 2026-06-17
 
 ### Fixed
@@ -297,6 +311,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix handling of empty certificates
 - Unit testing with mocks
 
+[2.1.3]: https://github.com/tgies/client-certificate-auth/compare/v2.1.2...v2.1.3
 [2.1.2]: https://github.com/tgies/client-certificate-auth/compare/v2.1.1...v2.1.2
 [2.1.1]: https://github.com/tgies/client-certificate-auth/compare/v2.1.0...v2.1.1
 [2.1.0]: https://github.com/tgies/client-certificate-auth/compare/v2.0.2...v2.1.0
