@@ -361,6 +361,77 @@ describe('extractClientCertificate', () => {
         assert.ok(result.certificate);
         assert.strictEqual(result.certificate.subject.CN, 'client.example.com');
       });
+
+      it('should link a chain carried in a multi-block url-pem header', async () => {
+        const selfsigned = (await import('selfsigned')).default;
+        const intermediate = await selfsigned.generate(
+          [{ name: 'commonName', value: 'Intermediate CA' }],
+          { algorithm: 'sha256', keySize: 2048, days: 1 }
+        );
+
+        const req = {
+          headers: {
+            'x-custom-cert': encodeURIComponent(`${testPem}\n${intermediate.cert}`),
+          },
+          socket: { authorized: false },
+        };
+
+        const result = extractClientCertificate(req, {
+          certificateHeader: 'X-Custom-Cert',
+          headerEncoding: 'url-pem',
+          includeChain: true,
+        });
+
+        assert.strictEqual(result.success, true);
+        assert.strictEqual(result.certificate.subject.CN, 'client.example.com');
+        assert.ok(result.certificate.issuerCertificate);
+        assert.strictEqual(result.certificate.issuerCertificate.subject.CN, 'Intermediate CA');
+      });
+
+      it('should strip the url-pem chain when includeChain is false', async () => {
+        const selfsigned = (await import('selfsigned')).default;
+        const intermediate = await selfsigned.generate(
+          [{ name: 'commonName', value: 'Intermediate CA' }],
+          { algorithm: 'sha256', keySize: 2048, days: 1 }
+        );
+
+        const req = {
+          headers: {
+            'x-custom-cert': encodeURIComponent(`${testPem}\n${intermediate.cert}`),
+          },
+          socket: { authorized: false },
+        };
+
+        const result = extractClientCertificate(req, {
+          certificateHeader: 'X-Custom-Cert',
+          headerEncoding: 'url-pem',
+        });
+
+        assert.strictEqual(result.success, true);
+        assert.strictEqual(result.certificate.subject.CN, 'client.example.com');
+        assert.strictEqual(result.certificate.issuerCertificate, undefined);
+      });
+
+      it('should reject a url-pem header whose leading block is malformed', () => {
+        const invalidBlock = '-----BEGIN CERTIFICATE-----\nNOT_VALID_BASE64\n-----END CERTIFICATE-----\n';
+
+        const req = {
+          headers: {
+            'x-custom-cert': encodeURIComponent(`${invalidBlock}${testPem}`),
+          },
+          socket: { authorized: false },
+        };
+
+        const result = extractClientCertificate(req, {
+          certificateHeader: 'X-Custom-Cert',
+          headerEncoding: 'url-pem',
+          includeChain: true,
+        });
+
+        assert.strictEqual(result.success, false);
+        assert.strictEqual(result.certificate, null);
+        assert.strictEqual(result.reason, 'header_missing_or_malformed');
+      });
     });
 
     describe('Cloudflare preset', () => {

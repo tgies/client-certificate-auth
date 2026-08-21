@@ -260,6 +260,21 @@ const _badNewSource = clientCertificateAuth(() => true, {
     certificateSource: 'azure-application-gateway',
 });
 
+// Test 26: chain access on an extraction result needs no narrowing, and the
+// chain terminates rather than recursing forever like DetailedPeerCertificate
+import { extractClientCertificate } from '../lib/extractor.js';
+import type { ChainedPeerCertificate } from '../lib/parsers.js';
+
+function testChainAccess(req: Parameters<typeof extractClientCertificate>[0]): string | string[] | undefined {
+    const result = extractClientCertificate(req, { certificateSource: 'aws-alb', includeChain: true });
+    return result.certificate?.issuerCertificate?.issuerCertificate?.subject?.CN;
+}
+
+const _terminatingChain: ChainedPeerCertificate = {
+    ...({} as ChainedPeerCertificate),
+    issuerCertificate: undefined,
+};
+
 // Suppress unused variable warnings - this file is for type-checking only
 void _statusCode;
 void _syncMiddleware;
@@ -291,3 +306,5 @@ void testFetchExtractorPlainObject;
 void testCjsFetchLoad;
 void _chainHeaderOption;
 void _badNewSource;
+void testChainAccess;
+void _terminatingChain;
