@@ -157,6 +157,37 @@ describe('parsers module', () => {
             const encoded = encodeURIComponent('not a certificate');
             assert.equal(parseUrlPem(encoded), null);
         });
+
+        it('should link a multi-block chain via issuerCertificate', async () => {
+            const intermediate = await generateClientCertificate('Test Intermediate');
+            const encoded = encodeAsNginx(`${testPem}\n${intermediate.cert}`);
+
+            const cert = parseUrlPem(encoded);
+
+            assert.ok(cert);
+            assert.equal(cert.subject.CN, 'Test Parser Client');
+            assert.ok(cert.issuerCertificate);
+            assert.equal(cert.issuerCertificate.subject.CN, 'Test Intermediate');
+            assert.equal(cert.issuerCertificate.issuerCertificate, undefined);
+        });
+
+        it('should drop a trailing malformed block and return the leaf', () => {
+            const invalidBlock = '-----BEGIN CERTIFICATE-----\nNOT_VALID_BASE64\n-----END CERTIFICATE-----\n';
+            const encoded = encodeAsNginx(`${testPem}\n${invalidBlock}`);
+
+            const cert = parseUrlPem(encoded);
+
+            assert.ok(cert);
+            assert.equal(cert.subject.CN, 'Test Parser Client');
+            assert.equal(cert.issuerCertificate, undefined);
+        });
+
+        it('should return null when the leading PEM block is malformed', () => {
+            const invalidBlock = '-----BEGIN CERTIFICATE-----\nNOT_VALID_BASE64\n-----END CERTIFICATE-----\n';
+            const encoded = encodeAsNginx(`${invalidBlock}${testPem}`);
+
+            assert.equal(parseUrlPem(encoded), null);
+        });
     });
 
     describe('parseUrlPemAws (AWS ALB format)', () => {

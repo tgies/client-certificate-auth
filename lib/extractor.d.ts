@@ -1,7 +1,7 @@
 /**
  * @typedef {Object} ExtractionResult
  * @property {boolean} success - Whether extraction succeeded
- * @property {import('tls').PeerCertificate | null} certificate - Extracted certificate (null on failure)
+ * @property {import('./parsers.js').ChainedPeerCertificate | null} certificate - Extracted certificate (null on failure)
  * @property {string | null} reason - Rejection reason code (null on success)
  *
  * Rejection reasons:
@@ -74,7 +74,7 @@ export type ExtractionResult = {
     /**
      * - Extracted certificate (null on failure)
      */
-    certificate: import("tls").PeerCertificate | null;
+    certificate: import("./parsers.js").ChainedPeerCertificate | null;
     /**
      * - Rejection reason code (null on success)
      *

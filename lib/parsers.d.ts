@@ -7,6 +7,14 @@
 import type { PeerCertificate } from 'tls';
 
 /**
+ * A certificate with an optional issuer chain. Header-extracted chains end at
+ * the topmost certificate, while Node's socket chains self-reference at the root.
+ */
+export type ChainedPeerCertificate = PeerCertificate & {
+    issuerCertificate?: ChainedPeerCertificate;
+};
+
+/**
  * Supported header encoding formats.
  */
 export type HeaderEncoding = 'url-pem' | 'url-pem-aws' | 'xfcc' | 'base64-der' | 'rfc9440';
@@ -60,26 +68,26 @@ export interface CertificateHeaderConfig {
  * Parse URL-encoded PEM certificate (nginx, HAProxy format).
  * @see https://nginx.org/en/docs/http/ngx_http_ssl_module.html#var_ssl_client_escaped_cert
  */
-export declare function parseUrlPem(headerValue: string): PeerCertificate | null;
+export declare function parseUrlPem(headerValue: string): ChainedPeerCertificate | null;
 
 /**
  * Parse URL-encoded PEM certificate with AWS ALB safe character handling.
  * @see https://docs.aws.amazon.com/elasticloadbalancing/latest/application/mutual-authentication.html
  */
-export declare function parseUrlPemAws(headerValue: string): PeerCertificate | null;
+export declare function parseUrlPemAws(headerValue: string): ChainedPeerCertificate | null;
 
 /**
  * Parse Envoy XFCC (X-Forwarded-Client-Cert) structured header format.
  * @see https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_conn_man/headers#x-forwarded-client-cert
  */
-export declare function parseXfcc(headerValue: string): PeerCertificate | null;
+export declare function parseXfcc(headerValue: string): ChainedPeerCertificate | null;
 
 /**
  * Parse base64-encoded DER certificate (Cloudflare, Traefik format).
  * Also handles Traefik's comma-separated cert chains.
  * @see https://developers.cloudflare.com/api-shield/security/mtls/configure/
  */
-export declare function parseBase64Der(headerValue: string): PeerCertificate | null;
+export declare function parseBase64Der(headerValue: string): ChainedPeerCertificate | null;
 
 /**
  * Parse RFC 9440 format certificate (used by Google Cloud Load Balancer).
@@ -103,7 +111,7 @@ export declare function derToCertificate(der: Buffer): PeerCertificate;
 export declare function parseHeaderValue(
     headerValue: string,
     encoding: HeaderEncoding
-): PeerCertificate | null;
+): ChainedPeerCertificate | null;
 
 /**
  * Get certificate from request headers using configuration.
@@ -111,4 +119,4 @@ export declare function parseHeaderValue(
 export declare function getCertificateFromHeaders(
     headers: Record<string, string | string[] | undefined>,
     config: CertificateHeaderConfig
-): PeerCertificate | null;
+): ChainedPeerCertificate | null;
