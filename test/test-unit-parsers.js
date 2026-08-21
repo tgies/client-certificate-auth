@@ -171,6 +171,15 @@ describe('parsers module', () => {
             assert.equal(cert.subject.CN, 'Test Parser Client');
         });
 
+        it('should return null when the leading PEM block is malformed', () => {
+            // The leaf must parse on its own; the valid block behind it is not
+            // promoted into the leaf position.
+            const invalidBlock = '-----BEGIN CERTIFICATE-----\nNOT_VALID_BASE64\n-----END CERTIFICATE-----\n';
+            const encoded = encodeAsAwsAlb(invalidBlock + testPem);
+
+            assert.equal(parseUrlPemAws(encoded), null);
+        });
+
         it('should return null when every PEM block in a chain is malformed', () => {
             const invalidBlock1 = '-----BEGIN CERTIFICATE-----\nNOT_VALID_BASE64_1\n-----END CERTIFICATE-----\n';
             const invalidBlock2 = '-----BEGIN CERTIFICATE-----\nNOT_VALID_BASE64_2\n-----END CERTIFICATE-----\n';
@@ -430,6 +439,13 @@ describe('parsers module', () => {
             assert.equal(cert.issuerCertificate.subject.CN, 'Test Intermediate');
         });
 
+        it('should return null when the leading block in multi-block Chain is malformed', () => {
+            const invalidBlock = '-----BEGIN CERTIFICATE-----\nNOT_VALID_BASE64\n-----END CERTIFICATE-----\n';
+            const xfcc = `Hash=abc;Chain="${encodeURIComponent(invalidBlock + testPem)}"`;
+
+            assert.equal(parseXfcc(xfcc), null);
+        });
+
         it('should return null when every block in multi-block Chain is invalid', () => {
             const invalidBlock1 = '-----BEGIN CERTIFICATE-----\nNOT_VALID_BASE64_1\n-----END CERTIFICATE-----\n';
             const invalidBlock2 = '-----BEGIN CERTIFICATE-----\nNOT_VALID_BASE64_2\n-----END CERTIFICATE-----\n';
@@ -522,15 +538,20 @@ describe('parsers module', () => {
                 'only two valid certs in chain, not three');
         });
 
-        it('should return single valid cert when others in chain are invalid', () => {
+        it('should return null when the leading cert in a chain is invalid', () => {
             const validBase64 = encodeAsCloudflare(testDer);
             const invalidBase64 = Buffer.from('invalid-cert-data').toString('base64');
 
-            const result = parseBase64Der(`${invalidBase64},${validBase64},${invalidBase64}`);
-            assert.ok(result);
-            assert.equal(result.subject.CN, 'Test Parser Client');
-            assert.equal(result.issuerCertificate, undefined,
-                'single surviving cert should not have issuerCertificate');
+            // The leaf is the identity the request authenticates as, so a
+            // later entry must never be promoted into its place.
+            assert.equal(parseBase64Der(`${invalidBase64},${validBase64},${invalidBase64}`), null);
+        });
+
+        it('should return null when only trailing certs in a chain are valid', () => {
+            const validBase64 = encodeAsCloudflare(testDer);
+            const invalidBase64 = Buffer.from('invalid-cert-data').toString('base64');
+
+            assert.equal(parseBase64Der(`${invalidBase64},${validBase64}`), null);
         });
     });
 
