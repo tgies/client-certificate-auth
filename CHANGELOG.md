@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2026-08-23
+
+### Security
+
+- **A damaged leaf no longer promotes the next certificate in the header** ([#187](https://github.com/tgies/client-certificate-auth/pull/187), [#189](https://github.com/tgies/client-certificate-auth/pull/189)) — `url-pem-aws`, `xfcc`, and `base64-der` dropped unparseable entries before picking the leaf, so an empty or mangled first entry let the next certificate become the authenticated identity. The first entry must now parse, and non-whitespace ahead of the first PEM block rejects the header.
+
+### Fixed
+
+- **`url-pem` discarded the certificate chain** ([#188](https://github.com/tgies/client-certificate-auth/pull/188)) — `parseUrlPem` returned only the leaf, so `includeChain: true` produced no `issuerCertificate` from a multi-block header. Concatenated blocks are now linked as they already were for `url-pem-aws` and `xfcc`.
+
+### Types
+
+- **`ChainedPeerCertificate`** ([#188](https://github.com/tgies/client-certificate-auth/pull/188), [#190](https://github.com/tgies/client-certificate-auth/pull/190)) — new export from `client-certificate-auth/parsers`: a `PeerCertificate` with an optional recursive `issuerCertificate`. Node's `DetailedPeerCertificate` requires one at every level, which header-extracted chains do not have. Applied to the chain-capable parsers, `ExtractionResult`, `req.clientCertificate`, and the callback and hook signatures, where reading `cert.issuerCertificate` under `includeChain: true` was a `TS2339`.
+
+### Documentation
+
+- **Chains in a single header** ([#191](https://github.com/tgies/client-certificate-auth/pull/191)) — new reverse-proxy guide section covering which encodings carry a chain in one header value, and the leaf rule above.
+
 ## [2.1.3] - 2026-08-18
 
 ### Fixed
@@ -312,6 +330,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix handling of empty certificates
 - Unit testing with mocks
 
+[2.2.0]: https://github.com/tgies/client-certificate-auth/compare/v2.1.3...v2.2.0
 [2.1.3]: https://github.com/tgies/client-certificate-auth/compare/v2.1.2...v2.1.3
 [2.1.2]: https://github.com/tgies/client-certificate-auth/compare/v2.1.1...v2.1.2
 [2.1.1]: https://github.com/tgies/client-certificate-auth/compare/v2.1.0...v2.1.1
