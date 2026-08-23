@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'http';
 import type { Socket } from 'net';
 import type { PeerCertificate, DetailedPeerCertificate } from 'tls';
+import type { ChainedPeerCertificate } from './parsers.js';
 import type { CertificateSource, HeaderEncoding } from './parsers.js';
 
 export type { CertificateSource, HeaderEncoding };
@@ -54,7 +55,7 @@ export interface ClientCertRequest extends IncomingMessage {
      * Available after successful certificate extraction, before authorization callback.
      * Contains issuerCertificate chain if includeChain option is true.
      */
-    clientCertificate?: PeerCertificate | DetailedPeerCertificate;
+    clientCertificate?: ChainedPeerCertificate;
 }
 
 /**
@@ -127,7 +128,7 @@ export interface ClientCertificateAuthOptions {
      * @param req - The HTTP request object
      */
     onAuthenticated?: (
-        cert: PeerCertificate | DetailedPeerCertificate,
+        cert: ChainedPeerCertificate,
         req: ClientCertRequest
     ) => void | Promise<void>;
 
@@ -139,14 +140,14 @@ export interface ClientCertificateAuthOptions {
      * @param reason - Why authentication was rejected
      */
     onRejected?: (
-        cert: PeerCertificate | DetailedPeerCertificate | null,
+        cert: ChainedPeerCertificate | null,
         req: ClientCertRequest,
         reason: string
     ) => void | Promise<void>;
 }
 
 export type ValidationCallback = (
-    cert: PeerCertificate | DetailedPeerCertificate,
+    cert: ChainedPeerCertificate,
     req?: ClientCertRequest
 ) => boolean | PromiseLike<boolean>;
 
