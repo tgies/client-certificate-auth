@@ -412,6 +412,21 @@ describe('extractClientCertificate', () => {
         assert.strictEqual(result.certificate.issuerCertificate, undefined);
       });
 
+      it('should reject a traefik header whose leading chain entry is empty', () => {
+        const req = {
+          headers: {
+            'x-forwarded-tls-client-cert': `,${pemToDer(testPem).toString('base64')}`,
+          },
+          socket: { authorized: false },
+        };
+
+        const result = extractClientCertificate(req, { certificateSource: 'traefik' });
+
+        assert.strictEqual(result.success, false);
+        assert.strictEqual(result.certificate, null);
+        assert.strictEqual(result.reason, 'header_missing_or_malformed');
+      });
+
       it('should reject a url-pem header whose leading block is malformed', () => {
         const invalidBlock = '-----BEGIN CERTIFICATE-----\nNOT_VALID_BASE64\n-----END CERTIFICATE-----\n';
 
