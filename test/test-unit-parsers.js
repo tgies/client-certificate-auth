@@ -188,6 +188,22 @@ describe('parsers module', () => {
 
             assert.equal(parseUrlPem(encoded), null);
         });
+
+        it('should return null when junk precedes the first PEM block', () => {
+            // A leaf mangled past its markers is not a block at all, so the
+            // next certificate would otherwise take the leaf position.
+            const encoded = encodeAsNginx(`----BEGIN CERTIFICATE-----\nQUJD\n-----END CERT-----\n${testPem}`);
+
+            assert.equal(parseUrlPem(encoded), null);
+        });
+
+        it('should tolerate whitespace before the first PEM block', () => {
+            const encoded = encodeAsNginx(`\n  \n${testPem}`);
+            const cert = parseUrlPem(encoded);
+
+            assert.ok(cert);
+            assert.equal(cert.subject.CN, 'Test Parser Client');
+        });
     });
 
     describe('parseUrlPemAws (AWS ALB format)', () => {
@@ -228,6 +244,12 @@ describe('parsers module', () => {
             // promoted into the leaf position.
             const invalidBlock = '-----BEGIN CERTIFICATE-----\nNOT_VALID_BASE64\n-----END CERTIFICATE-----\n';
             const encoded = encodeAsAwsAlb(invalidBlock + testPem);
+
+            assert.equal(parseUrlPemAws(encoded), null);
+        });
+
+        it('should return null when junk precedes the first PEM block', () => {
+            const encoded = encodeAsAwsAlb(`GARBAGE TEXT\n${testPem}`);
 
             assert.equal(parseUrlPemAws(encoded), null);
         });
@@ -498,6 +520,12 @@ describe('parsers module', () => {
             assert.equal(parseXfcc(xfcc), null);
         });
 
+        it('should return null when junk precedes the first block in Chain', () => {
+            const xfcc = `Hash=abc;Chain="${encodeURIComponent(`GARBAGE TEXT\n${testPem}`)}"`;
+
+            assert.equal(parseXfcc(xfcc), null);
+        });
+
         it('should return null when every block in multi-block Chain is invalid', () => {
             const invalidBlock1 = '-----BEGIN CERTIFICATE-----\nNOT_VALID_BASE64_1\n-----END CERTIFICATE-----\n';
             const invalidBlock2 = '-----BEGIN CERTIFICATE-----\nNOT_VALID_BASE64_2\n-----END CERTIFICATE-----\n';
@@ -597,6 +625,22 @@ describe('parsers module', () => {
             // The leaf is the identity the request authenticates as, so a
             // later entry must never be promoted into its place.
             assert.equal(parseBase64Der(`${invalidBase64},${validBase64},${invalidBase64}`), null);
+        });
+
+        it('should return null when the leading chain entry is empty', () => {
+            const validBase64 = encodeAsCloudflare(testDer);
+
+            assert.equal(parseBase64Der(`,${validBase64}`), null);
+            assert.equal(parseBase64Der(`  ,${validBase64}`), null);
+        });
+
+        it('should ignore a trailing empty chain entry', () => {
+            const validBase64 = encodeAsCloudflare(testDer);
+            const cert = parseBase64Der(`${validBase64},`);
+
+            assert.ok(cert);
+            assert.equal(cert.subject.CN, 'Test Parser Client');
+            assert.equal(cert.issuerCertificate, undefined);
         });
 
         it('should return null when only trailing certs in a chain are valid', () => {
