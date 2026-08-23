@@ -1,6 +1,6 @@
 {
   "name": "client-certificate-auth",
-  "version": "2.1.3",
+  "version": "2.2.0",
   "description": "Express/Connect middleware for mTLS client certificate authentication with reverse proxy support (AWS ALB, Envoy, Cloudflare, Traefik)",
   "homepage": "https://github.com/tgies/client-certificate-auth",
   "bugs": {
