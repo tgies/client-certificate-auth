@@ -354,6 +354,8 @@ app.use(clientCertificateAuth((cert) => {
 
 When `includeChain: true`, the certificate object includes `issuerCertificate` linking to the issuer's certificate (and so on up the chain). This works consistently for both socket-based and header-based extraction.
 
+For header-based extraction the first certificate in the header is the leaf. If it is empty or unparseable the header is rejected with `header_missing_or_malformed` rather than promoting the next certificate into the leaf position. See [Reverse Proxy Setup](https://tgies.github.io/client-certificate-auth/guide/reverse-proxy#chains-in-a-single-header) for the per-encoding details.
+
 ### User Login
 
 Client certificates provide cryptographically-verified identity, making them ideal for user authentication. Map certificate fields to user accounts in your database:

@@ -129,6 +129,12 @@ The library supports five encoding formats covering all major reverse proxies:
 
 HAProxy's native certificate forwarding (`http-request set-header ... %[ssl_c_der,base64]`) is base64 DER, so pair it with `base64-der`. HAProxy has no built-in URL-encoded-PEM output; `url-pem` from HAProxy requires a custom Lua `url_enc` converter.
 
+### Chains in a Single Header
+
+`url-pem`, `url-pem-aws`, and `xfcc` accept concatenated PEM blocks in one header value; `base64-der` accepts comma-separated DER. The first entry is the leaf, and the leaf is the identity the request authenticates as.
+
+The leaf entry has to parse on its own. If it is empty, unparseable, or preceded by anything other than whitespace, the whole header is rejected and extraction fails with `header_missing_or_malformed`. A leaf damaged in transit therefore produces a 401 rather than authenticating the request as the next certificate in the header. Entries after the leaf are dropped individually when they fail to parse, and the chain links past them.
+
 ## Chain Header
 
 Some proxies forward the leaf certificate and the certificate chain in two separate headers. RFC 9440 is the canonical example: the leaf goes in `Client-Cert` and the chain in `Client-Cert-Chain` (a comma-separated structured-field list of `:base64:` items, leaf-nearest first).
@@ -151,7 +157,7 @@ app.use(clientCertificateAuth(checkAuth, {
 }));
 ```
 
-The comma splitting targets RFC 9440 structured-field lists. For non-RFC-9440 encodings that may contain commas inside a single cert value, use the single-header chain support already built into `base64-der` (comma-separated DER) and `url-pem-aws` (concatenated PEM blocks) instead.
+The comma splitting targets RFC 9440 structured-field lists. For non-RFC-9440 encodings that may contain commas inside a single cert value, use the single-header chain support built into `base64-der` (comma-separated DER), `url-pem` and `url-pem-aws` (concatenated PEM blocks), and `xfcc` (the `Chain` element) instead.
 
 ## Fallback Mode
 
