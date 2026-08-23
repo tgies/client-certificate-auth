@@ -275,6 +275,23 @@ const _terminatingChain: ChainedPeerCertificate = {
     issuerCertificate: undefined,
 };
 
+// Test 27: chain access inside a validation callback and off req.clientCertificate
+// needs no narrowing when includeChain is set
+const _chainInCallback = clientCertificateAuth(
+    (cert) => cert.issuerCertificate?.subject?.CN === 'Intermediate CA',
+    { includeChain: true }
+);
+
+function readChainOffRequest(req: ClientCertRequest): string | string[] | undefined {
+    return req.clientCertificate?.issuerCertificate?.subject?.CN;
+}
+
+const _chainInHooks = clientCertificateAuth(() => true, {
+    includeChain: true,
+    onAuthenticated: (cert) => void cert.issuerCertificate?.subject,
+    onRejected: (cert) => void cert?.issuerCertificate?.subject,
+});
+
 // Suppress unused variable warnings - this file is for type-checking only
 void _statusCode;
 void _syncMiddleware;
@@ -308,3 +325,6 @@ void _chainHeaderOption;
 void _badNewSource;
 void testChainAccess;
 void _terminatingChain;
+void _chainInCallback;
+void readChainOffRequest;
+void _chainInHooks;
