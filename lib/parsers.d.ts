@@ -124,6 +124,12 @@ export declare function parseHeaderValue(
 ): ChainedPeerCertificate | null;
 
 /**
+ * Split a string of concatenated PEM CERTIFICATE blocks into individual PEM
+ * strings. Returns an empty array when the input holds no CERTIFICATE block.
+ */
+export declare function splitPemBlocks(pem: string): string[];
+
+/**
  * Get certificate from request headers using configuration.
  */
 export declare function getCertificateFromHeaders(

@@ -93,6 +93,30 @@ export declare function allowSAN(values: string[]): ValidationCallback;
 export declare function allowEmail(emails: string[]): ValidationCallback;
 
 /**
+ * Create a validation callback that accepts certificates issued by one of the given
+ * CA certificates, directly or through the `issuerCertificate` chain attached with
+ * `includeChain: true`. Performs the subset of PKIX path validation that applies to a
+ * forwarded client certificate: issuer name and signature at every link, keyUsage
+ * keyCertSign where an issuer carries it, basicConstraints cA on every CA including the
+ * anchor, pathLenConstraint counting non-self-issued intermediates, clientAuth in the
+ * Extended Key Usage of every certificate on the path that carries one, digitalSignature
+ * or keyAgreement in the leaf's keyUsage when present, validity windows on every
+ * certificate, and rejection of any certificate carrying name constraints at any criticality
+ * or any other critical extension it does not process, so a name-constrained intermediate
+ * anywhere in the chain fails the check. Does
+ * not check revocation. Anchors must be CA certificates that permit clientAuth. Throws at
+ * construction if a CA certificate cannot be parsed, is not a CA, does not permit
+ * clientAuth, carries name constraints or an unsupported critical extension, or sits in a
+ * PEM bundle whose blocks cannot all be read, and if `maxDepth` is not a positive integer.
+ * @param caCertificates - PEM or DER encoded CA certificates; a PEM bundle contributes every certificate it holds
+ * @param options - `maxDepth` bounds the number of certificates walked, leaf included (default 10)
+ */
+export declare function allowCA(
+    caCertificates: string | Buffer | Array<string | Buffer>,
+    options?: { maxDepth?: number }
+): ValidationCallback;
+
+/**
  * Combine multiple validation callbacks with AND logic.
  * All callbacks must return true for the certificate to be authorized.
  * @param callbacks - Validation callbacks to combine
