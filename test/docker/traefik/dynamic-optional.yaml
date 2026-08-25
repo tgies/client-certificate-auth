@@ -1,0 +1,46 @@
+# Traefik dynamic configuration with optional client authentication.
+# PassTLSClientCert only sets X-Forwarded-Tls-Client-Cert when a certificate
+# was presented and never removes a client-supplied one, so a headers
+# middleware clears it ahead of passTLSClientCert.
+tls:
+  certificates:
+    - certFile: /certs/server.pem
+      keyFile: /certs/server.key
+  options:
+    default:
+      clientAuth:
+        caFiles:
+          - /certs/ca.pem
+        clientAuthType: VerifyClientCertIfGiven
+
+http:
+  routers:
+    backend:
+      rule: "PathPrefix(`/`)"
+      entryPoints:
+        - websecure
+      service: backend
+      middlewares:
+        - stripClientCertHeader
+        - addPrefix
+        - passTLSClientCert
+      tls:
+        options: default
+
+  middlewares:
+    stripClientCertHeader:
+      headers:
+        customRequestHeaders:
+          X-Forwarded-Tls-Client-Cert: ""
+    addPrefix:
+      addPrefix:
+        prefix: "/traefik"
+    passTLSClientCert:
+      passTLSClientCert:
+        pem: true
+
+  services:
+    backend:
+      loadBalancer:
+        servers:
+          - url: "http://backend:3000"

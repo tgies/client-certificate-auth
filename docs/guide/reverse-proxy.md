@@ -59,6 +59,8 @@ Each preset maps to a specific header name and encoding format:
 
 ::: tip Traefik note
 The `traefik` preset targets Traefik v3's `PassTLSClientCert` middleware with `pem: true`. Despite Traefik's docs describing this as "PEM format", the wire format is the base64 body without PEM headers, equivalent to base64-encoded DER. This applies to Traefik v2.9.4 and later and all of v3; Traefik 2.8 through 2.9.1 URL-escaped the value, which this preset does not decode.
+
+`PassTLSClientCert` only sets `X-Forwarded-Tls-Client-Cert` when the client presented a certificate and never removes a client-supplied one. Unless the TLS options selected by the router set `clientAuth.clientAuthType: RequireAndVerifyClientCert`, put a `headers` middleware that clears the header (`customRequestHeaders: { X-Forwarded-Tls-Client-Cert: "" }`) ahead of `passTLSClientCert` in the router's middleware chain. The E2E suite runs this configuration from `test/docker/traefik/dynamic-optional.yaml`.
 :::
 
 ::: tip Cloudflare note
