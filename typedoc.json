@@ -20,5 +20,6 @@
   "useHTMLEncodedBrackets": true,
   "excludeExternals": true,
   "externalPattern": ["**/node_modules/**"],
-  "entryFileName": "index"
+  "entryFileName": "index",
+  "intentionallyNotExported": ["PeerCertificate", "ChainedPeerCertificate", "ExtractionSuccess", "ExtractionFailure"]
 }

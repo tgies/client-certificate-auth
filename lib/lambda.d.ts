@@ -45,21 +45,33 @@ export interface LambdaEventWithClientCert {
 }
 
 /**
- * Result returned by `extractClientCertificateFromLambdaEvent`.
- * Matches the core extractor's `ExtractionResult`.
+ * Rejection reason codes:
+ * - 'lambda_event_missing_clientcert' - No clientCertPem at either v1 or v2 location
+ * - 'lambda_event_clientcert_malformed' - clientCertPem present but parsing failed
  */
-export interface LambdaExtractionResult {
-    /** Whether extraction succeeded. */
-    success: boolean;
-    /** Extracted certificate (null on failure). */
-    certificate: PeerCertificate | null;
-    /**
-     * Rejection reason code (null on success). Lambda-specific reasons:
-     * - 'lambda_event_missing_clientcert'
-     * - 'lambda_event_clientcert_malformed'
-     */
-    reason: string | null;
+export type LambdaExtractionFailureReason =
+    | 'lambda_event_missing_clientcert'
+    | 'lambda_event_clientcert_malformed';
+
+export interface LambdaExtractionSuccess {
+    success: true;
+    /** Extracted certificate. */
+    certificate: PeerCertificate;
+    reason: null;
 }
+
+export interface LambdaExtractionFailure {
+    success: false;
+    certificate: null;
+    /** Rejection reason code. */
+    reason: LambdaExtractionFailureReason;
+}
+
+/**
+ * Result returned by `extractClientCertificateFromLambdaEvent`. Discriminated
+ * on `success` like the core extractor's `ExtractionResult`.
+ */
+export type LambdaExtractionResult = LambdaExtractionSuccess | LambdaExtractionFailure;
 
 /**
  * Extract a client certificate from an AWS API Gateway Lambda event. Handles

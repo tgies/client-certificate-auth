@@ -1,16 +1,4 @@
 /**
- * @typedef {Object} ExtractionResult
- * @property {boolean} success - Whether extraction succeeded
- * @property {import('./parsers.js').ChainedPeerCertificate | null} certificate - Extracted certificate (null on failure)
- * @property {string | null} reason - Rejection reason code (null on success)
- *
- * Rejection reasons:
- * - 'verification_header_mismatch' - Proxy verify header didn't match expected value
- * - 'header_missing_or_malformed' - Header extraction failed and no fallback configured
- * - 'socket_not_authorized' - Socket not authorized for TLS client cert, or unreadable
- * - 'certificate_not_retrievable' - Socket authorized but getPeerCertificate() is missing, returned empty, or threw
- */
-/**
  * @typedef {Object} ExtractorOptions
  * @property {'aws-alb' | 'aws-alb-verify' | 'azure-app-service' | 'cloudflare' | 'cloudflare-rfc9440' | 'envoy' | 'traefik'} [certificateSource] - Preset configuration
  * @property {string} [certificateHeader] - Custom header name
@@ -77,26 +65,39 @@ export function extractClientCertificate(req: {
  * value, `null` and arrays among them, throws a `TypeError`.
  */
 export function validateExtractorOptions(options?: ExtractorOptions): void;
-export type ExtractionResult = {
+/**
+ * Rejection reason codes:
+ * - 'verification_header_mismatch' - Proxy verify header didn't match expected value
+ * - 'header_missing_or_malformed' - Header extraction failed and no fallback configured
+ * - 'socket_not_authorized' - Socket not authorized for TLS client cert, or unreadable
+ * - 'certificate_not_retrievable' - Socket authorized but getPeerCertificate() is missing, returned empty, or threw
+ */
+export type ExtractionFailureReason =
+    | "verification_header_mismatch"
+    | "header_missing_or_malformed"
+    | "socket_not_authorized"
+    | "certificate_not_retrievable";
+export type ExtractionSuccess = {
+    success: true;
     /**
-     * - Whether extraction succeeded
+     * - Extracted certificate
      */
-    success: boolean;
-    /**
-     * - Extracted certificate (null on failure)
-     */
-    certificate: import("./parsers.js").ChainedPeerCertificate | null;
-    /**
-     * - Rejection reason code (null on success)
-     *
-     * Rejection reasons:
-     * - 'verification_header_mismatch' - Proxy verify header didn't match expected value
-     * - 'header_missing_or_malformed' - Header extraction failed and no fallback configured
-     * - 'socket_not_authorized' - Socket not authorized for TLS client cert, or unreadable
-     * - 'certificate_not_retrievable' - Socket authorized but getPeerCertificate() is missing, returned empty, or threw
-     */
-    reason: string | null;
+    certificate: import("./parsers.js").ChainedPeerCertificate;
+    reason: null;
 };
+export type ExtractionFailure = {
+    success: false;
+    certificate: null;
+    /**
+     * - Rejection reason code
+     */
+    reason: ExtractionFailureReason;
+};
+/**
+ * Discriminated on `success`: narrowing on it exposes `certificate` on
+ * success and `reason` on failure without null checks.
+ */
+export type ExtractionResult = ExtractionSuccess | ExtractionFailure;
 export type ExtractorOptions = {
     /**
      * - Preset configuration
