@@ -331,6 +331,26 @@ describe('clientCertificateAuth (CommonJS)', () => {
                 });
             });
 
+            it('should not call next() again when a downstream handler throws after sync authorization', () => {
+                const middleware = clientCertificateAuth(() => true);
+                let calls = 0;
+                assert.throws(() => middleware(mockGoodReq, mockRes, () => {
+                    calls++;
+                    throw new Error('downstream threw');
+                }), /downstream threw/);
+                assert.equal(calls, 1);
+            });
+
+            it('should not call next() again when a downstream handler throws after async authorization', async () => {
+                const middleware = clientCertificateAuth(async () => true);
+                let calls = 0;
+                await assert.rejects(() => middleware(mockGoodReq, mockRes, () => {
+                    calls++;
+                    throw new Error('downstream threw');
+                }), /downstream threw/);
+                assert.equal(calls, 1);
+            });
+
             it('should pass a frozen sync error to next() with status 401', done => {
                 const locked = Object.freeze(new Error('locked'));
                 const middleware = clientCertificateAuth(() => {

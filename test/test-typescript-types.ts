@@ -3,7 +3,7 @@
  * This file is not executed, only type-checked by `npm run typecheck`.
  */
 import clientCertificateAuth from '../lib/clientCertificateAuth.js';
-import type { ClientCertRequest, HttpError, ClientCertificateAuthOptions, ValidationCallback } from '../lib/clientCertificateAuth.js';
+import type { ClientCertRequest, HttpError, ClientCertificateAuthOptions, Middleware, ValidationCallback } from '../lib/clientCertificateAuth.js';
 
 // Test 1: Error.status augmentation works on plain Error objects
 const plainError = new Error('test');
@@ -328,3 +328,8 @@ void _terminatingChain;
 void _chainInCallback;
 void readChainOffRequest;
 void _chainInHooks;
+
+// Test 23: the middleware returns the promise from an async callback, so
+// Express 5 can await it and surface a downstream throw.
+type Assert<T extends true> = T;
+type _MiddlewareMayReturnPromise = Assert<Promise<void> extends ReturnType<Middleware> ? true : false>;

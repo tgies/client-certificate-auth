@@ -155,7 +155,7 @@ export type Middleware = (
     req: ClientCertRequest,
     res: ClientCertResponse,
     next: (err?: Error | HttpError) => void
-) => void;
+) => void | Promise<void>;
 
 /**
  * Express/Connect middleware for client SSL certificate authentication.
