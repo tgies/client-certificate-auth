@@ -28,8 +28,10 @@
  * extraction (direct TLS connections). Returns a structured result object instead of
  * throwing or using callbacks, making it suitable for any framework adapter.
  *
- * @param {Object} req - Request object with headers and optional socket
- * @param {Record<string, string | string[] | undefined>} req.headers - HTTP headers object
+ * @param {Object} req - Request object with headers and optional socket. A missing or
+ *   non-object `headers` field, one whose accessor throws, and one holding a
+ *   property whose accessor throws are all treated as having no headers.
+ * @param {Record<string, string | string[] | undefined>} [req.headers] - HTTP headers object
  * @param {Object} [req.socket] - TLS socket with getPeerCertificate() method
  * @param {boolean} [req.socket.authorized] - Whether socket was authorized
  * @param {(detailed: boolean) => import('tls').PeerCertificate} [req.socket.getPeerCertificate] - Get peer certificate
@@ -53,7 +55,7 @@
  * });
  */
 export function extractClientCertificate(req: {
-    headers: Record<string, string | string[] | undefined>;
+    headers?: Record<string, string | string[] | undefined>;
     socket?: {
         authorized?: boolean;
         getPeerCertificate?: (detailed: boolean) => import("tls").PeerCertificate;

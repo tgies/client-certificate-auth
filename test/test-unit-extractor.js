@@ -192,6 +192,93 @@ describe('extractClientCertificate', () => {
     });
   });
 
+  describe('unreadable request headers', () => {
+    const cases = [
+      ['an undefined req', undefined],
+      ['a req without headers', {}],
+      ['null headers', { headers: null }],
+      ['string headers', { headers: 'x-amzn-mtls-clientcert=abc' }],
+      ['a throwing headers accessor', { get headers() { throw new Error('accessor threw'); } }],
+      ['a throwing certificate header accessor', {
+        headers: { get 'x-amzn-mtls-clientcert'() { throw new Error('header trap'); } },
+      }],
+      ['headers whose keys cannot be enumerated', {
+        headers: new Proxy({}, { ownKeys() { throw new Error('ownKeys threw'); } }),
+      }],
+    ];
+
+    for (const [label, req] of cases) {
+      it(`should report header_missing_or_malformed for ${label}`, () => {
+        const result = extractClientCertificate(req, { certificateSource: 'aws-alb' });
+
+        assert.strictEqual(result.success, false);
+        assert.strictEqual(result.certificate, null);
+        assert.strictEqual(result.reason, 'header_missing_or_malformed');
+      });
+    }
+
+    it('should report verification_header_mismatch when a verify header is configured', () => {
+      const result = extractClientCertificate({}, {
+        certificateSource: 'aws-alb',
+        verifyHeader: 'X-SSL-Client-Verify',
+        verifyValue: 'SUCCESS',
+      });
+
+      assert.strictEqual(result.success, false);
+      assert.strictEqual(result.reason, 'verification_header_mismatch');
+    });
+
+    it('should discard every header when an unrelated accessor throws', () => {
+      const req = {
+        headers: {
+          'x-amzn-mtls-clientcert': encodeURIComponent(testPem),
+          get 'user-agent'() { throw new Error('header trap'); },
+        },
+      };
+
+      const result = extractClientCertificate(req, { certificateSource: 'aws-alb' });
+
+      assert.strictEqual(result.success, false);
+      assert.strictEqual(result.reason, 'header_missing_or_malformed');
+    });
+
+    it('should report verification_header_mismatch when the verify header accessor throws', () => {
+      const result = extractClientCertificate({
+        headers: { get 'x-ssl-client-verify'() { throw new Error('verify trap'); } },
+      }, {
+        certificateSource: 'aws-alb',
+        verifyHeader: 'X-SSL-Client-Verify',
+        verifyValue: 'SUCCESS',
+      });
+
+      assert.strictEqual(result.success, false);
+      assert.strictEqual(result.reason, 'verification_header_mismatch');
+    });
+
+    it('should fall back to the socket when fallbackToSocket is true', () => {
+      const mockCert = getMockPeerCertificate();
+      const req = {
+        headers: null,
+        socket: { authorized: true, getPeerCertificate: () => mockCert },
+      };
+
+      const result = extractClientCertificate(req, {
+        certificateSource: 'aws-alb',
+        fallbackToSocket: true,
+      });
+
+      assert.strictEqual(result.success, true);
+      assert.deepStrictEqual(result.certificate, mockCert);
+    });
+
+    it('should report socket_not_authorized for an undefined req in socket mode', () => {
+      const result = extractClientCertificate(undefined);
+
+      assert.strictEqual(result.success, false);
+      assert.strictEqual(result.reason, 'socket_not_authorized');
+    });
+  });
+
   describe('socket extraction', () => {
     it('should extract certificate from authorized socket', () => {
       const mockCert = getMockPeerCertificate();

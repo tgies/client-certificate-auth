@@ -244,6 +244,104 @@ describe('extractClientCertificateFromRequest', () => {
       assert.strictEqual(result.success, true);
       assert.strictEqual(result.certificate.subject.CN, 'fetch.example.com');
     });
+
+    it('should ignore malformed tuples so they do not overwrite a valid value', () => {
+      for (const malformed of [['client-cert'], ['client-cert', 42], ['client-cert', 'x', 'y']]) {
+        const headers = [
+          ['client-cert', encodeAsRfc9440(testDer)],
+          malformed,
+        ];
+        const result = extractClientCertificateFromRequest({ headers }, {
+          certificateSource: 'cloudflare-rfc9440',
+        });
+        assert.strictEqual(result.success, true);
+        assert.strictEqual(result.certificate.subject.CN, 'fetch.example.com');
+      }
+    });
+
+    it('should report a failure when the headers iterator throws mid-iteration', () => {
+      const throwing = {
+        *[Symbol.iterator]() {
+          yield ['client-cert', encodeAsRfc9440(testDer)];
+          throw new Error('iterator blew up');
+        },
+      };
+      const result = extractClientCertificateFromRequest({ headers: throwing }, {
+        certificateSource: 'cloudflare-rfc9440',
+      });
+      assert.strictEqual(result.success, false);
+      assert.strictEqual(result.reason, 'header_missing_or_malformed');
+    });
+
+    it('should report a failure when the headers iterator violates the protocol', () => {
+      const badProtocol = {
+        [Symbol.iterator]() {
+          return { next() { return 42; } };
+        },
+      };
+      const result = extractClientCertificateFromRequest({ headers: badProtocol }, {
+        certificateSource: 'cloudflare-rfc9440',
+      });
+      assert.strictEqual(result.success, false);
+      assert.strictEqual(result.reason, 'header_missing_or_malformed');
+    });
+
+    it('should report a failure when reading request.headers throws', () => {
+      const request = { get headers() { throw new Error('headers getter blew up'); } };
+      const result = extractClientCertificateFromRequest(request, {
+        certificateSource: 'cloudflare-rfc9440',
+      });
+      assert.strictEqual(result.success, false);
+      assert.strictEqual(result.reason, 'header_missing_or_malformed');
+    });
+
+    it('should report a failure when the Symbol.iterator accessor throws', () => {
+      const headers = {};
+      Object.defineProperty(headers, Symbol.iterator, {
+        get() { throw new Error('iterator getter blew up'); },
+      });
+      const result = extractClientCertificateFromRequest({ headers }, {
+        certificateSource: 'cloudflare-rfc9440',
+      });
+      assert.strictEqual(result.success, false);
+      assert.strictEqual(result.reason, 'header_missing_or_malformed');
+    });
+  });
+
+  describe('without iterable headers', () => {
+    const cases = [
+      ['an undefined request', undefined],
+      ['a request without headers', {}],
+      ['null headers', { headers: null }],
+      ['plain-object headers', { headers: { 'client-cert': 'value' } }],
+    ];
+
+    for (const [label, request] of cases) {
+      it(`should report header_missing_or_malformed for ${label}`, () => {
+        const result = extractClientCertificateFromRequest(request, {
+          certificateSource: 'cloudflare-rfc9440',
+        });
+
+        assert.strictEqual(result.success, false);
+        assert.strictEqual(result.certificate, null);
+        assert.strictEqual(result.reason, 'header_missing_or_malformed');
+      });
+    }
+
+    it('should skip entries that are not [name, value] tuples', () => {
+      const headers = [
+        'client-cert',
+        [42, 'ignored'],
+        ['client-cert', encodeAsRfc9440(testDer)],
+      ];
+
+      const result = extractClientCertificateFromRequest({ headers }, {
+        certificateSource: 'cloudflare-rfc9440',
+      });
+
+      assert.strictEqual(result.success, true);
+      assert.strictEqual(result.certificate.subject.CN, 'fetch.example.com');
+    });
   });
 
   describe('header-only behavior', () => {

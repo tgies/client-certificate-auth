@@ -222,7 +222,7 @@ Framework-agnostic certificate extraction function exported from `client-certifi
 | Name | Type | Description |
 |------|------|-------------|
 | `req` | `Object` | Request object with `headers` and optional `socket` |
-| `req.headers` | `Record<string, string \| string[]>` | HTTP headers object |
+| `req.headers` | `Record<string, string \| string[]>` | Optional. HTTP headers object; a missing or unreadable one counts as no headers |
 | `req.socket` | `Object` | Optional TLS socket (for socket-based extraction) |
 | `options` | `Object` | Same options as middleware (except `onAuthenticated`/`onRejected`) |
 
