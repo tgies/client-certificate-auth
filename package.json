@@ -131,7 +131,6 @@
     "test:all": "npm run test && npm run test:e2e",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "build:types": "tsc --declaration --emitDeclarationOnly --outDir lib",
     "check": "npm run lint && npm run typecheck && npm run test:coverage",
     "stats": "echo '=== Source ===' && cloc lib/ --quiet | tail -n +2 && echo '=== Tests ===' && cloc test/ --exclude-dir=docker --quiet | tail -n +2 && echo '=== Package ===' && npm pack --dry-run 2>&1 | grep -E 'package size|unpacked size|total files'",
     "prepare": "husky",
