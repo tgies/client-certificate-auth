@@ -129,6 +129,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added a `constructor option validation` describe block covering unknown `certificateSource`, unknown `headerEncoding`, `certificateHeader` without an encoding source, and inherited `Object.prototype` key rejection (`toString`, `constructor`, `hasOwnProperty`, `__proto__`).
 - Added a TypeScript type test that returns a plain `PromiseLike<boolean>` (not a native `Promise`) to lock in the widened contract.
 
+## [1.3.8] - 2026-08-25
+
+### Security
+
+- **A damaged leaf no longer promotes the next certificate in the header** (backport of [#187](https://github.com/tgies/client-certificate-auth/pull/187), [#189](https://github.com/tgies/client-certificate-auth/pull/189)) — `url-pem-aws`, `xfcc`, and `base64-der` dropped unparseable entries before picking the leaf, so an empty or mangled first entry let the next certificate become the authenticated identity. The first entry must now parse, and non-whitespace ahead of the first PEM block rejects the header.
+
+## [1.3.7] - 2026-06-11
+
+### Fixed
+
+- **Non-Error callback throws/rejections wrapped before `next()`** (backport of [#144](https://github.com/tgies/client-certificate-auth/pull/144)) — a validation callback that threw or rejected with a primitive (a string, `null`) hit a `TypeError` in the middleware's error path: reading `.message` on `null`, or assigning `.status` on a string primitive. The sync path surfaced the `TypeError` to the framework as a 500 instead of a 401; the async path threw inside the promise rejection handler, leaving the rejection unhandled (fatal under Node's default `--unhandled-rejections=throw`). Primitive values are now wrapped in an `Error` (string values become the message) before hook dispatch and `next()`; objects, including `Error`s, pass through unchanged. Applied identically in the ESM and CJS modules.
+
+## [1.3.6] - 2026-05-23
+
+### Fixed
+
+- **Non-native thenables adopted via `Promise.resolve`** (backport of [#125](https://github.com/tgies/client-certificate-auth/pull/125)) — `safeCallHook` and the validation callback path both gated on `result instanceof Promise`, so non-native thenables returned from hooks or callbacks slipped past the guard. Hook rejections surfaced as unhandled rejections; callback thenables fell through to the sync resolution branch. Both now use a new `isThenable` helper wrapped in `Promise.resolve(...)`. Applied in both ESM and CJS.
+- **`allowFingerprints` strips colon delimiters** (backport of [#126](https://github.com/tgies/client-certificate-auth/pull/126)) — `cert.fingerprint` and `cert.fingerprint256` from Node's `toLegacyObject()` are colon-delimited uppercase hex, but `allowFingerprints` only uppercased its inputs. Callers passing contiguous hex (`ABCDEF...`) silently failed to match a cert whose fingerprint was `AB:CD:EF...`. Both sides now normalize with `toUpperCase().replace(/:/g, '')`, matching `allowSerial`.
+
+## [1.3.5] - 2026-05-19
+
+### Security
+
+- **Sanitized authentication failure messages** — `socket_not_authorized` (both ESM and CJS) previously interpolated `req.socket.authorizationError` (OpenSSL codes like `CERT_HAS_EXPIRED`, `UNABLE_TO_GET_ISSUER_CERT`) into the `next(err)` message; `verification_header_mismatch` (ESM) reflected `req.headers[verifyHeader]` similarly. Both now use static generic text. Diagnostic details remain available via the `req` argument passed to the `onRejected` hook.
+
 ## [1.3.4] - 2026-04-30
 
 ### Fixed
@@ -338,6 +363,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [2.0.2]: https://github.com/tgies/client-certificate-auth/compare/v2.0.1...v2.0.2
 [2.0.1]: https://github.com/tgies/client-certificate-auth/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/tgies/client-certificate-auth/compare/v1.3.4...v2.0.0
+[1.3.8]: https://github.com/tgies/client-certificate-auth/compare/v1.3.7...v1.3.8
+[1.3.7]: https://github.com/tgies/client-certificate-auth/compare/v1.3.6...v1.3.7
+[1.3.6]: https://github.com/tgies/client-certificate-auth/compare/v1.3.5...v1.3.6
+[1.3.5]: https://github.com/tgies/client-certificate-auth/compare/v1.3.4...v1.3.5
 [1.3.4]: https://github.com/tgies/client-certificate-auth/compare/v1.3.3...v1.3.4
 [1.3.3]: https://github.com/tgies/client-certificate-auth/compare/v1.3.2...v1.3.3
 [1.3.2]: https://github.com/tgies/client-certificate-auth/compare/v1.3.1...v1.3.2
