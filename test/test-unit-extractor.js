@@ -687,6 +687,59 @@ describe('extractClientCertificate', () => {
 
       assert.strictEqual(result.success, true);
     });
+
+    it('should report socket_not_authorized when the socket accessor throws', () => {
+      const req = { headers: {}, get socket() { throw new Error('socket destroyed'); } };
+
+      const result = extractClientCertificate(req);
+
+      assert.strictEqual(result.success, false);
+      assert.strictEqual(result.certificate, null);
+      assert.strictEqual(result.reason, 'socket_not_authorized');
+    });
+
+    it('should report socket_not_authorized when the authorized accessor throws', () => {
+      const req = {
+        headers: {},
+        socket: { get authorized() { throw new Error('socket destroyed'); } },
+      };
+
+      const result = extractClientCertificate(req);
+
+      assert.strictEqual(result.success, false);
+      assert.strictEqual(result.reason, 'socket_not_authorized');
+    });
+
+    it('should report certificate_not_retrievable when the getPeerCertificate accessor throws', () => {
+      const req = {
+        headers: {},
+        socket: {
+          authorized: true,
+          get getPeerCertificate() { throw new Error('socket destroyed'); },
+        },
+      };
+
+      const result = extractClientCertificate(req);
+
+      assert.strictEqual(result.success, false);
+      assert.strictEqual(result.reason, 'certificate_not_retrievable');
+    });
+
+    it('should report certificate_not_retrievable when getPeerCertificate throws', () => {
+      const req = {
+        headers: {},
+        socket: {
+          authorized: true,
+          getPeerCertificate: () => { throw new Error('handle destroyed'); },
+        },
+      };
+
+      const result = extractClientCertificate(req);
+
+      assert.strictEqual(result.success, false);
+      assert.strictEqual(result.certificate, null);
+      assert.strictEqual(result.reason, 'certificate_not_retrievable');
+    });
   });
 
   describe('header extraction', () => {

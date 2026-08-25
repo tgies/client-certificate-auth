@@ -546,6 +546,20 @@ describe('clientCertificateAuth', () => {
           done();
         });
       });
+
+      it('should pass 500 error to next() when getPeerCertificate throws', done => {
+        const reqThrowingCert = {
+          ...mockGoodReq,
+          socket: { authorized: true, getPeerCertificate: () => { throw new Error('handle destroyed'); } }
+        };
+        const middleware = clientCertificateAuth(() => true);
+        middleware(reqThrowingCert, mockRes, (err) => {
+          assert.ok(err instanceof Error);
+          assert.equal(err.status, 500);
+          assert.ok(err.message.includes('could not be retrieved'));
+          done();
+        });
+      });
     });
 
 
