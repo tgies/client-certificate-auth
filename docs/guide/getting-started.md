@@ -311,19 +311,29 @@ The certificate is attached before the authorization callback runs, so it's avai
 
 ## Certificate Chain Access
 
-For enterprise PKI scenarios, you may need to inspect intermediate CAs or the root CA:
+For enterprise PKI scenarios, you may need to inspect intermediate CAs or the root CA. Which of the two below applies depends on how the certificate reached you; they are alternatives, not a pair to use together.
+
+On a direct TLS connection Node validated the chain during the handshake, so issuer fields distinguish between the CAs the server already trusts:
 
 ```javascript
 app.use(clientCertificateAuth((cert) => {
-  // Check issuer's organization
-  if (cert.issuerCertificate) {
-    return cert.issuerCertificate.subject.O === 'Trusted Root CA';
-  }
-  return false;
+  return cert.issuerCertificate?.subject.O === 'Trusted Root CA';
 }, { includeChain: true }));
 ```
 
-When `includeChain: true`, the certificate object includes `issuerCertificate` linking to the issuer's certificate (and so on up the chain). This works consistently for both socket-based and header-based extraction.
+Behind a passthrough proxy nothing has validated anything, so verify the chain rather than read fields from it (`aws-alb` forwards the chain, `azure-app-service` only the leaf):
+
+```javascript
+import { readFileSync } from 'node:fs';
+import { allowCA } from 'client-certificate-auth/helpers';
+
+app.use(clientCertificateAuth(allowCA(readFileSync('ca.pem')), {
+  certificateSource: 'aws-alb',
+  includeChain: true
+}));
+```
+
+When `includeChain: true`, the certificate object includes `issuerCertificate` linking to the issuer's certificate (and so on up the chain). This works consistently for both socket-based and header-based extraction, except on Node.js 26.8.0 and later, where a Node.js regression ([nodejs/node#65579](https://github.com/nodejs/node/issues/65579)) leaves `issuerCertificate` unset on the socket path; header-based extraction is unaffected. See [Troubleshooting](./troubleshooting#certificate-chain-missing-on-node-js-26-8-0-and-later).
 
 For header-based extraction the first certificate in the header is the leaf. If it is empty or unparseable the header is rejected with `header_missing_or_malformed` rather than promoting the next certificate into the leaf position. See [Chains in a Single Header](./reverse-proxy.md#chains-in-a-single-header) for the per-encoding details.
 
