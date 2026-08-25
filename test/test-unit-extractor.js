@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import http from 'node:http';
+import net from 'node:net';
 import { extractClientCertificate, validateExtractorOptions } from '../lib/extractor.js';
 import { pemToDer } from './test-helpers.js';
 
@@ -290,6 +292,19 @@ describe('extractClientCertificate', () => {
       ['headers whose keys cannot be enumerated', {
         headers: new Proxy({}, { ownKeys() { throw new Error('ownKeys threw'); } }),
       }],
+      ['a throwing rawHeaders accessor', {
+        headers: { 'x-amzn-mtls-clientcert': 'irrelevant' },
+        get rawHeaders() { throw new Error('rawHeaders trap'); },
+      }],
+      ['rawHeaders that throw while being walked', {
+        headers: { 'x-amzn-mtls-clientcert': 'irrelevant' },
+        rawHeaders: new Proxy(['x-amzn-mtls-clientcert', 'v'], {
+          get(target, prop) {
+            if (prop === 'length') { throw new Error('rawHeaders trap'); }
+            return Reflect.get(target, prop);
+          },
+        }),
+      }],
     ];
 
     for (const [label, req] of cases) {
@@ -361,6 +376,186 @@ describe('extractClientCertificate', () => {
 
       assert.strictEqual(result.success, false);
       assert.strictEqual(result.reason, 'socket_not_authorized');
+    });
+  });
+
+  describe('repeated header lines', () => {
+    const encoded = () => encodeURIComponent(testPem);
+
+    // traefik reads a comma as its own chain separator, so the joined value
+    // parses and only the rawHeaders count can reject it.
+    const joinedDer = () => `${pemToDer(testPem).toString('base64')},${pemToDer(testPem).toString('base64')}`;
+
+    it('should reject a certificate header that appears more than once in rawHeaders', () => {
+      const req = {
+        headers: { 'x-forwarded-tls-client-cert': joinedDer() },
+        rawHeaders: [
+          'X-Forwarded-Tls-Client-Cert', pemToDer(testPem).toString('base64'),
+          'Host', 'example.com',
+          'x-forwarded-tls-client-cert', pemToDer(testPem).toString('base64'),
+        ],
+        socket: { authorized: false },
+      };
+
+      const result = extractClientCertificate(req, { certificateSource: 'traefik' });
+
+      assert.strictEqual(result.success, false);
+      assert.strictEqual(result.certificate, null);
+      assert.strictEqual(result.reason, 'header_missing_or_malformed');
+    });
+
+    it('should accept the same traefik chain when the header appears once', () => {
+      const req = {
+        headers: { 'x-forwarded-tls-client-cert': joinedDer() },
+        rawHeaders: ['X-Forwarded-Tls-Client-Cert', joinedDer()],
+        socket: { authorized: false },
+      };
+
+      const result = extractClientCertificate(req, { certificateSource: 'traefik' });
+
+      assert.strictEqual(result.success, true);
+      assert.strictEqual(result.certificate.subject.CN, 'client.example.com');
+    });
+
+    it('should reject a url-pem certificate header repeated in rawHeaders', () => {
+      const req = {
+        headers: { 'x-amzn-mtls-clientcert': `${encoded()}, ${encoded()}` },
+        rawHeaders: ['X-Amzn-Mtls-Clientcert', encoded(), 'Host', 'example.com', 'x-amzn-mtls-clientcert', encoded()],
+        socket: { authorized: false },
+      };
+
+      const result = extractClientCertificate(req, { certificateSource: 'aws-alb' });
+
+      assert.strictEqual(result.success, false);
+      assert.strictEqual(result.certificate, null);
+      assert.strictEqual(result.reason, 'header_missing_or_malformed');
+    });
+
+    it('should accept a certificate header that appears exactly once', () => {
+      const req = {
+        headers: { 'x-amzn-mtls-clientcert': encoded(), 'x-forwarded-for': '10.0.0.1, 10.0.0.2' },
+        rawHeaders: ['X-Forwarded-For', '10.0.0.1', 'X-Amzn-Mtls-Clientcert', encoded(), 'X-Forwarded-For', '10.0.0.2'],
+        socket: { authorized: false },
+      };
+
+      const result = extractClientCertificate(req, { certificateSource: 'aws-alb' });
+
+      assert.strictEqual(result.success, true);
+      assert.strictEqual(result.certificate.subject.CN, 'client.example.com');
+    });
+
+    it('should fall back to the socket when a repeated header is rejected and fallbackToSocket is true', () => {
+      const mockCert = getMockPeerCertificate();
+      const req = {
+        headers: { 'x-forwarded-tls-client-cert': joinedDer() },
+        rawHeaders: [
+          'X-Forwarded-Tls-Client-Cert', pemToDer(testPem).toString('base64'),
+          'X-Forwarded-Tls-Client-Cert', pemToDer(testPem).toString('base64'),
+        ],
+        socket: { authorized: true, getPeerCertificate: () => mockCert },
+      };
+
+      const result = extractClientCertificate(req, { certificateSource: 'traefik', fallbackToSocket: true });
+
+      assert.strictEqual(result.success, true);
+      assert.deepStrictEqual(result.certificate, mockCert);
+    });
+
+    it('should read the first XFCC element, which an appending Envoy leaves client-controlled', () => {
+      // Envoy APPEND_FORWARD adds its element after the client's, on one header
+      // line, so the repeat check sees a single occurrence. Documented in
+      // reverse-proxy.md as a configuration the library cannot compensate for.
+      const value = `Hash=a;Cert=${encoded()},By=spiffe://mesh;Cert=${encoded()}`;
+      const req = {
+        headers: { 'x-forwarded-client-cert': value },
+        rawHeaders: ['X-Forwarded-Client-Cert', value],
+        socket: { authorized: false },
+      };
+
+      const result = extractClientCertificate(req, { certificateSource: 'envoy' });
+
+      assert.strictEqual(result.success, true);
+      assert.strictEqual(result.certificate.subject.CN, 'client.example.com');
+    });
+
+    it('should reject a repeated verification header as verification_header_mismatch', () => {
+      const req = {
+        headers: { 'x-ssl-client-cert': encoded(), 'x-ssl-client-verify': 'SUCCESS' },
+        rawHeaders: ['X-SSL-Client-Verify', 'SUCCESS', 'X-SSL-Client-Cert', encoded(), 'X-SSL-Client-Verify', 'FAILED'],
+        socket: { authorized: false },
+      };
+
+      const result = extractClientCertificate(req, {
+        certificateHeader: 'X-SSL-Client-Cert',
+        headerEncoding: 'url-pem',
+        verifyHeader: 'X-SSL-Client-Verify',
+        verifyValue: 'SUCCESS',
+      });
+
+      assert.strictEqual(result.success, false);
+      assert.strictEqual(result.reason, 'verification_header_mismatch');
+    });
+
+    it('should combine repeated chain header lines as an RFC 9440 list', () => {
+      const leaf = encodeAsRfc9440(pemToDer(testPem));
+      const req = {
+        headers: { 'client-cert': leaf, 'client-cert-chain': `${leaf}, ${leaf}` },
+        rawHeaders: ['Client-Cert', leaf, 'Client-Cert-Chain', leaf, 'Client-Cert-Chain', leaf],
+        socket: { authorized: false },
+      };
+
+      const result = extractClientCertificate(req, { certificateSource: 'cloudflare-rfc9440', includeChain: true });
+
+      assert.strictEqual(result.success, true);
+      assert.ok(result.certificate.issuerCertificate);
+      assert.ok(result.certificate.issuerCertificate.issuerCertificate);
+      assert.strictEqual(result.certificate.issuerCertificate.issuerCertificate.issuerCertificate, undefined);
+    });
+
+    it('should ignore rawHeaders that are not an array or contain non-string names', () => {
+      for (const rawHeaders of ['X-Amzn-Mtls-Clientcert', [42, encoded(), 'X-Amzn-Mtls-Clientcert', encoded()]]) {
+        const req = {
+          headers: { 'x-amzn-mtls-clientcert': encoded() },
+          rawHeaders,
+          socket: { authorized: false },
+        };
+
+        const result = extractClientCertificate(req, { certificateSource: 'aws-alb' });
+
+        assert.strictEqual(result.success, true);
+      }
+    });
+
+    it('should reject repeated header lines as parsed by Node http', async () => {
+      const seen = [];
+      const server = http.createServer((req, res) => {
+        seen.push(extractClientCertificate(req, { certificateSource: 'aws-alb' }));
+        res.end();
+      });
+      await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+      const { port } = server.address();
+
+      const send = (lines) => new Promise((resolve, reject) => {
+        const socket = net.connect(port, '127.0.0.1', () => {
+          socket.end(['GET / HTTP/1.1', 'Host: example.com', ...lines, 'Connection: close', '', ''].join('\r\n'));
+        });
+        socket.resume();
+        socket.on('error', reject);
+        socket.on('close', resolve);
+      });
+
+      try {
+        await send([`X-Amzn-Mtls-Clientcert: ${encoded()}`, `X-Amzn-Mtls-Clientcert: ${encoded()}`]);
+        await send([`X-Amzn-Mtls-Clientcert: ${encoded()}`]);
+      } finally {
+        await new Promise(resolve => server.close(resolve));
+      }
+
+      assert.strictEqual(seen.length, 2);
+      assert.strictEqual(seen[0].success, false);
+      assert.strictEqual(seen[0].reason, 'header_missing_or_malformed');
+      assert.strictEqual(seen[1].success, true);
+      assert.strictEqual(seen[1].certificate.subject.CN, 'client.example.com');
     });
   });
 

@@ -502,7 +502,7 @@ app.use(clientCertificateAuth(checkAuth, {
 | `url-pem-aws` | URL-encoded PEM (AWS variant, `+` as safe char) | AWS ALB |
 | `xfcc` | Envoy's structured `Key=Value;...` format | Envoy, Istio |
 | `base64-der` | Base64-encoded DER certificate | Cloudflare, Traefik, Azure App Service, HAProxy (`ssl_c_der,base64`) |
-| `rfc9440` | RFC 9440 format: `:base64-der:` | Cloudflare (RFC 9440 forwarding), Google Cloud LB |
+| `rfc9440` | RFC 9440 format: exactly `:base64-der:` | Cloudflare (RFC 9440 forwarding), Google Cloud LB |
 
 HAProxy's native certificate forwarding (`http-request set-header ... %[ssl_c_der,base64]`) is base64 DER, so pair it with `base64-der`. HAProxy has no built-in URL-encoded-PEM output; `url-pem` from HAProxy requires a custom Lua `url_enc` converter.
 
@@ -856,6 +856,7 @@ The E2E tests spin up real reverse proxies, generate fresh certificates, and ver
 
 - Set `rejectUnauthorized: false` on your HTTPS server to let this middleware provide helpful error messages, rather than dropping connections silently
 - **When using header-based auth**, ensure your proxy strips certificate headers from external requests
+- Repeated certificate or verification header lines are rejected (Node joins repeats with `, `, so the first value would otherwise win); chain headers are RFC 9440 lists and may repeat
 - Use `verifyHeader`/`verifyValue` as defense-in-depth when using header-based authentication
 
 ## Upgrading from 1.x

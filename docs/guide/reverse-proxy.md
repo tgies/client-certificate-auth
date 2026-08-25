@@ -125,7 +125,7 @@ The library supports five encoding formats covering all major reverse proxies:
 | `url-pem-aws` | URL-encoded PEM (AWS variant, `+` as safe char) | AWS ALB |
 | `xfcc` | Envoy's structured `Key=Value;...` format | Envoy, Istio |
 | `base64-der` | Base64-encoded DER certificate | Cloudflare, Traefik, Azure App Service, Caddy, HAProxy (`ssl_c_der,base64`) |
-| `rfc9440` | RFC 9440 format: `:base64-der:` | Cloudflare (RFC 9440 forwarding), Google Cloud LB |
+| `rfc9440` | RFC 9440 format: exactly `:base64-der:` | Cloudflare (RFC 9440 forwarding), Google Cloud LB |
 
 HAProxy's native certificate forwarding (`http-request set-header ... %[ssl_c_der,base64]`) is base64 DER, so pair it with `base64-der`. HAProxy has no built-in URL-encoded-PEM output; `url-pem` from HAProxy requires a custom Lua `url_enc` converter.
 
@@ -184,6 +184,8 @@ Configure your proxy to:
 3. **Never** trust certificate headers from untrusted sources
 
 Without these precautions, an attacker could forge certificate headers and bypass authentication entirely.
+
+Repeated header lines are rejected. Node joins repeated headers with `, `, and every encoding would otherwise read the first value, so a request whose certificate or verification header appears more than once in `req.rawHeaders` fails closed (`header_missing_or_malformed`, or `verification_header_mismatch` for the verification header). A proxy that appends a second header line instead of replacing the client's therefore cannot hand the client-supplied value to the middleware. A proxy that appends *within* one header line is a different matter: Envoy's `APPEND_FORWARD` keeps the client's XFCC element and adds its own after it, all on one line, so `rawHeaders` sees a single occurrence and the first element (the one `xfcc` reads) is whatever the client sent. Configure Envoy with `SANITIZE_SET` or `FORWARD_ONLY`, never `APPEND_FORWARD`, on any hop reachable from outside the mesh. Chain headers are RFC 9440 lists and may repeat; repeated chain lines are combined, so a proxy that appends instead of replacing would let a client contribute certificates to the chain. Verifying every link by signature against a CA you control is what makes a forwarded chain trustworthy; fields read straight from `issuerCertificate` are not. Requests without `rawHeaders` (Web `Request` objects, Lambda events, hand-built request objects) are not checked, because their headers arrive already joined; there a joined repeat is still rejected wherever the encoding forbids a comma: the exact `:base64:` form required by `rfc9440`, both URL-encoded PEM encodings, and `base64-der` under every preset but `traefik`, whose leaf header carries the chain. A `base64-der` value read through `traefik` or a hand-configured `certificateHeader`, and any `xfcc` value, use the comma grammatically and have no equivalent signal.
 
 ## Verification Header (Defense in Depth)
 
