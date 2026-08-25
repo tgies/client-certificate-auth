@@ -875,23 +875,6 @@ describe('clientCertificateAuth', () => {
           });
         });
 
-        it('should not check verifyHeader for socket-based extraction', done => {
-          // Socket-based auth should ignore verifyHeader
-          const middleware = clientCertificateAuth((cert) => {
-            assert.equal(cert.subject.CN, 'Proctor Davenport');
-            return true;
-          }, {
-            verifyHeader: 'X-SSL-Client-Verify',
-            verifyValue: 'SUCCESS'
-            // No certificateSource or certificateHeader = socket-based
-          });
-
-          middleware(mockGoodReq, mockRes, (err) => {
-            assert.equal(err, undefined);
-            done();
-          });
-        });
-
         it('should throw at construction when only verifyHeader is set (no verifyValue)', () => {
           assert.throws(
             () => clientCertificateAuth(() => true, {
@@ -1001,6 +984,59 @@ describe('clientCertificateAuth', () => {
           {
             name: 'Error',
             message: /unknown headerEncoding 'url-perm'/
+          }
+        );
+      });
+
+      it('should throw when verifyHeader and verifyValue are set without a header source', () => {
+        assert.throws(
+          () => clientCertificateAuth(() => true, {
+            verifyHeader: 'X-SSL-Client-Verify',
+            verifyValue: 'SUCCESS'
+          }),
+          {
+            name: 'Error',
+            message: /verifyHeader requires certificateSource or certificateHeader/
+          }
+        );
+      });
+
+        it('should throw when the options argument is not an object', () => {
+            assert.throws(
+                () => clientCertificateAuth(() => true, 'aws-alb'),
+                {
+                    name: 'TypeError',
+                    message: /options must be an object/
+                }
+            );
+        });
+
+      it('should throw when fallbackToSocket is not a boolean', () => {
+        assert.throws(
+          () => clientCertificateAuth(() => true, {
+            certificateSource: 'aws-alb',
+            fallbackToSocket: 'false'
+          }),
+          {
+            name: 'Error',
+            message: /fallbackToSocket must be a boolean/
+          }
+        );
+      });
+
+      it('should throw when onAuthenticated or onRejected is not a function', () => {
+        assert.throws(
+          () => clientCertificateAuth(() => true, { onAuthenticated: 'log' }),
+          {
+            name: 'TypeError',
+            message: /onAuthenticated must be a function/
+          }
+        );
+        assert.throws(
+          () => clientCertificateAuth(() => true, { onRejected: null }),
+          {
+            name: 'TypeError',
+            message: /onRejected must be a function/
           }
         );
       });

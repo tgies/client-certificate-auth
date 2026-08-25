@@ -18,8 +18,11 @@
  * @property {'url-pem' | 'url-pem-aws' | 'xfcc' | 'base64-der' | 'rfc9440'} [headerEncoding] - Header encoding
  * @property {boolean} [fallbackToSocket=false] - Try socket if header extraction fails
  * @property {boolean} [includeChain=false] - Include issuerCertificate chain
- * @property {string} [verifyHeader] - Header name for upstream verification status
- * @property {string} [verifyValue] - Expected value for successful verification
+ * @property {string} [verifyHeader] - Header name for upstream verification status. Pairs
+ *   with `verifyValue`, and requires `certificateSource` or `certificateHeader`:
+ *   verification applies to header-based extraction only.
+ * @property {string} [verifyValue] - Expected value for successful verification. Pairs
+ *   with `verifyHeader`.
  */
 /**
  * Extract client certificate from request.
@@ -61,9 +64,12 @@ export function extractClientCertificate(req: {
 }, options?: ExtractorOptions): ExtractionResult;
 /**
  * Validate options shared by `extractClientCertificate` and the middleware constructor.
- * Throws on unknown `certificateSource`, unknown `headerEncoding`,
- * `certificateHeader` without an encoding source, or only one of `verifyHeader`/`verifyValue`.
- * Omitted or `undefined` options are treated as the empty object; explicit `null` throws.
+ * Throws on an unknown `certificateSource` or `headerEncoding`, a header-name option that
+ * is not a non-empty string, a flag that is not a boolean, `certificateHeader` without an
+ * encoding source, `chainHeader` or `verifyHeader` without a leaf header source, or only
+ * one of `verifyHeader`/`verifyValue`.
+ * Omitted or `undefined` options are treated as the empty object; any other non-object
+ * value, `null` and arrays among them, throws a `TypeError`.
  */
 export function validateExtractorOptions(options?: ExtractorOptions): void;
 export type ExtractionResult = {
@@ -112,11 +118,13 @@ export type ExtractorOptions = {
      */
     includeChain?: boolean;
     /**
-     * - Header name for upstream verification status
+     * - Header name for upstream verification status. Pairs with `verifyValue`, and
+     * requires `certificateSource` or `certificateHeader`: verification applies to
+     * header-based extraction only.
      */
     verifyHeader?: string;
     /**
-     * - Expected value for successful verification
+     * - Expected value for successful verification. Pairs with `verifyHeader`.
      */
     verifyValue?: string;
 };

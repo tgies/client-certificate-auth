@@ -49,6 +49,19 @@ describe('extractClientCertificateFromRequest', () => {
     });
   });
 
+  describe('option validation', () => {
+    it('should validate fallbackToSocket before stripping it', () => {
+      const request = new Request('https://example.com/api', { headers: {} });
+      assert.throws(
+        () => extractClientCertificateFromRequest(request, {
+          certificateSource: 'cloudflare-rfc9440',
+          fallbackToSocket: 'yes',
+        }),
+        { name: 'Error', message: /fallbackToSocket must be a boolean/ }
+      );
+    });
+  });
+
   describe('with Web Request', () => {
     it('should extract certificate via cloudflare-rfc9440 preset from a Web Request', () => {
       const request = new Request('https://example.com/api', {

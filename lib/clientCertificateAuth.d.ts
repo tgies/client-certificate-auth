@@ -109,7 +109,9 @@ export interface ClientCertificateAuthOptions {
 
     /**
      * Header name containing certificate verification status from upstream proxy.
-     * Must be used together with verifyValue. Example: 'X-SSL-Client-Verify' for nginx.
+     * Must be used together with verifyValue, and requires certificateSource or
+     * certificateHeader: verification applies to header-based extraction only.
+     * Example: 'X-SSL-Client-Verify' for nginx.
      */
     verifyHeader?: string;
 
