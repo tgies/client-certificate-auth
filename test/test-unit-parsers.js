@@ -9,6 +9,7 @@ import {
     derToCertificate,
     parseHeaderValue,
     getCertificateFromHeaders,
+    MAX_CHAIN_CERTS,
     PRESETS,
 } from '../lib/parsers.js';
 import { generateClientCertificate, pemToDer } from './test-helpers.js';
@@ -125,6 +126,10 @@ describe('parsers module', () => {
             assert.equal(PRESETS['cloudflare-rfc9440'].header, 'client-cert');
             assert.equal(PRESETS['cloudflare-rfc9440'].chainHeader, 'client-cert-chain');
             assert.equal(PRESETS['cloudflare-rfc9440'].encoding, 'rfc9440');
+        });
+
+        it('should export MAX_CHAIN_CERTS', () => {
+            assert.equal(MAX_CHAIN_CERTS, 10);
         });
 
         it('should have traefik preset', () => {
@@ -273,6 +278,17 @@ describe('parsers module', () => {
         it('should return null when URL encoding is malformed', () => {
             // %G0 is not a valid percent-encoded sequence; decodeURIComponent throws.
             assert.equal(parseUrlPemAws('%G0'), null);
+        });
+
+        it('should accept up to MAX_CHAIN_CERTS PEM blocks and reject more before parsing', () => {
+            const atCap = parseUrlPemAws(encodeAsAwsAlb(Array(MAX_CHAIN_CERTS).fill(testPem).join('\n')));
+            assert.ok(atCap);
+            let depth = 0;
+            for (let c = atCap; c; c = c.issuerCertificate) {depth++;}
+            assert.equal(depth, MAX_CHAIN_CERTS);
+
+            const overCap = Array(MAX_CHAIN_CERTS + 1).fill(testPem).join('\n');
+            assert.equal(parseUrlPemAws(encodeAsAwsAlb(overCap)), null);
         });
 
         it('should stop scanning at a BEGIN marker with no matching END marker', () => {
@@ -773,6 +789,27 @@ describe('parsers module', () => {
             const invalidBase64 = Buffer.from('invalid-cert-data').toString('base64');
 
             assert.equal(parseBase64Der(`${invalidBase64},${validBase64}`), null);
+        });
+
+        it('should accept up to MAX_CHAIN_CERTS entries and reject more before parsing', () => {
+            const validBase64 = encodeAsCloudflare(testDer);
+            const atCap = parseBase64Der(Array(MAX_CHAIN_CERTS).fill(validBase64).join(','));
+            assert.ok(atCap);
+            let depth = 0;
+            for (let c = atCap; c; c = c.issuerCertificate) {depth++;}
+            assert.equal(depth, MAX_CHAIN_CERTS);
+
+            const junk = Array(MAX_CHAIN_CERTS).fill('x');
+            assert.equal(parseBase64Der([validBase64, ...junk].join(',')), null);
+        });
+
+        it('should not count empty entries after the leaf toward the cap', () => {
+            const validBase64 = encodeAsCloudflare(testDer);
+            const cert = parseBase64Der(validBase64 + ','.repeat(20000));
+
+            assert.ok(cert);
+            assert.equal(cert.subject.CN, 'Test Parser Client');
+            assert.equal(cert.issuerCertificate, undefined);
         });
     });
 

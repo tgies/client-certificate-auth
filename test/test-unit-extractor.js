@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import net from 'node:net';
 import { extractClientCertificate, validateExtractorOptions } from '../lib/extractor.js';
+import { MAX_CHAIN_CERTS } from '../lib/parsers.js';
 import { pemToDer } from './test-helpers.js';
 
 /**
@@ -1109,6 +1110,63 @@ describe('extractClientCertificate', () => {
         assert.ok(result.certificate.issuerCertificate);
         assert.strictEqual(result.certificate.issuerCertificate.subject.CN, 'Intermediate CA');
         assert.strictEqual(result.certificate.issuerCertificate.issuerCertificate, undefined);
+      });
+    });
+
+    describe('chain header length cap', () => {
+      it('should reject a chain header that would exceed MAX_CHAIN_CERTS certificates with the leaf', () => {
+        const leafDer = pemToDer(testPem);
+        const makeReq = (count) => ({
+          headers: {
+            'client-cert': encodeAsRfc9440(leafDer),
+            'client-cert-chain': Array(count).fill(':x:').join(', '),
+          },
+          socket: { authorized: false },
+        });
+
+        const atCap = extractClientCertificate(makeReq(MAX_CHAIN_CERTS - 1), {
+          certificateSource: 'cloudflare-rfc9440',
+          includeChain: true,
+        });
+        assert.strictEqual(atCap.success, true);
+        assert.strictEqual(atCap.certificate.issuerCertificate, undefined);
+
+        const overCap = extractClientCertificate(makeReq(MAX_CHAIN_CERTS), {
+          certificateSource: 'cloudflare-rfc9440',
+          includeChain: true,
+        });
+        assert.strictEqual(overCap.success, false);
+        assert.strictEqual(overCap.certificate, null);
+        assert.strictEqual(overCap.reason, 'header_missing_or_malformed');
+      });
+
+      it('should count every certificate a single chain item expands into', () => {
+        // One url-pem item can carry several concatenated certificates, so the
+        // cap bounds the leaf plus every parsed certificate, not the
+        // comma-separated item count.
+        const multiBlock = (count) => encodeURIComponent(Array(count).fill(testPem).join('\n'));
+        const makeReq = (count) => ({
+          headers: {
+            'x-custom-cert': encodeURIComponent(testPem),
+            'x-custom-chain': multiBlock(count),
+          },
+          socket: { authorized: false },
+        });
+        const options = {
+          certificateHeader: 'X-Custom-Cert',
+          chainHeader: 'X-Custom-Chain',
+          headerEncoding: 'url-pem',
+          includeChain: true,
+        };
+
+        const atCap = extractClientCertificate(makeReq(MAX_CHAIN_CERTS - 1), options);
+        assert.strictEqual(atCap.success, true);
+        assert.ok(atCap.certificate.issuerCertificate);
+
+        const overCap = extractClientCertificate(makeReq(MAX_CHAIN_CERTS), options);
+        assert.strictEqual(overCap.success, false);
+        assert.strictEqual(overCap.certificate, null);
+        assert.strictEqual(overCap.reason, 'header_missing_or_malformed');
       });
     });
 

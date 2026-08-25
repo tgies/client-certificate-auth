@@ -130,3 +130,9 @@ export declare function getCertificateFromHeaders(
     headers: Record<string, string | string[] | undefined>,
     config: CertificateHeaderConfig
 ): ChainedPeerCertificate | null;
+
+/**
+ * Maximum number of certificates accepted from one header value (leaf plus chain).
+ * Longer inputs are rejected before any certificate is parsed.
+ */
+export declare const MAX_CHAIN_CERTS: number;
