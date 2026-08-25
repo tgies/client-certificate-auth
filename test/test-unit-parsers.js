@@ -321,6 +321,17 @@ describe('parsers module', () => {
             assert.equal(parseXfcc(xfcc), null);
         });
 
+        it('should match the Cert and Chain keys case-insensitively', () => {
+            const encodedPem = encodeURIComponent(testPem);
+            const viaCert = parseXfcc(`Hash=abc;cert="${encodedPem}"`);
+            const viaChain = parseXfcc(`Hash=abc;CHAIN="${encodedPem}"`);
+
+            assert.ok(viaCert);
+            assert.equal(viaCert.subject.CN, 'Test Parser Client');
+            assert.ok(viaChain);
+            assert.equal(viaChain.subject.CN, 'Test Parser Client');
+        });
+
         it('should return null for empty input', () => {
             assert.equal(parseXfcc(''), null);
         });
