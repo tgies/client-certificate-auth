@@ -84,6 +84,8 @@ app.use(clientCertificateAuth(anyOf(
 )));
 ```
 
+Both combinators invoke every callback up front and await the results with `Promise.all`, so a `false` result or a rejected promise from one callback does not stop the others from running. A synchronous throw does: it interrupts the invocation loop before the remaining callbacks are called.
+
 These combinators accept any number of callbacks, including custom functions, so you can mix helpers with your own logic:
 
 ```javascript

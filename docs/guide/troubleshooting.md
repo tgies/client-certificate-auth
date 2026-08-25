@@ -2,7 +2,7 @@
 
 ## Security Notes
 
-- Set `rejectUnauthorized: false` on your HTTPS server to let this middleware provide helpful error messages, rather than dropping connections silently.
+- Set `rejectUnauthorized: false` on your HTTPS server to let this middleware provide helpful error messages, rather than dropping connections silently. Routes that do not run the middleware then have no TLS-layer client-certificate enforcement, so apply it to every route that needs authentication.
 - **When using header-based auth**, ensure your proxy strips certificate headers from external requests. See [Reverse Proxy Security Considerations](./reverse-proxy#security-considerations).
 - Use `verifyHeader`/`verifyValue` as defense-in-depth when using header-based authentication. See [Verification Header](./reverse-proxy#verification-header-defense-in-depth).
 
@@ -94,7 +94,7 @@ See the [WebSocket Support](./websocket) page for complete examples with both `w
 
 ## ESM vs CJS Import Differences
 
-This package is an ES module with a CJS compatibility wrapper. The sync `require()` entry only supports socket-based mTLS; reverse proxy options require the async `load()` function. Subpath exports (`/helpers`, `/extractor`, `/parsers`) also need `load()` in CJS.
+This package is an ES module with a CJS compatibility wrapper. The sync `require()` entry only supports socket-based mTLS; reverse proxy options require the async `load()` function. Subpath exports (`/helpers`, `/extractor`, `/parsers`, `/lambda`, `/fetch`) also need `load()` in CJS.
 
 For a full breakdown of what's available in each mode, see the [TypeScript & CJS](./typescript) page.
 

@@ -96,7 +96,7 @@ The sync CJS wrapper does not support reverse proxy options. Passing these optio
 
 ### Subpath Exports in CJS
 
-The `/helpers`, `/parsers`, and `/extractor` subpath exports each provide a `load()` function for async access in CommonJS. The individual functions are not synchronously available via `require()`.
+The `/helpers`, `/parsers`, `/extractor`, `/lambda`, and `/fetch` subpath exports each provide a `load()` function for async access in CommonJS. The individual functions are not synchronously available via `require()`.
 
 ```javascript
 // Helpers

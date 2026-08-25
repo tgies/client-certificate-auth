@@ -30,6 +30,8 @@ The header is the only evidence of the client's identity, so the origin must be 
 
 ::: warning Runtime requirement
 The adapter imports the core extractor, which uses `node:crypto` (`X509Certificate`). Runtimes must provide Node-compatible crypto: Node, Bun, Deno, and Cloudflare Workers with `nodejs_compat` all work. Pure edge runtimes without Node compatibility will fail at import time.
+
+TypeScript consumers need `@types/node` installed; the declarations reference `tls.PeerCertificate`.
 :::
 
 ## Recipes

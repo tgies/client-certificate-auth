@@ -247,7 +247,7 @@ function koaClientCert(checkAuth, options = {}) {
     ctx.state.clientCertificate = result.certificate;
 
     const allowed = await checkAuth(result.certificate, ctx.req);
-    if (!allowed) {
+    if (allowed !== true) {
       ctx.throw(401, 'Certificate not authorized');
     }
 
@@ -290,7 +290,7 @@ app.post('/api/login', (req, res) => {
 });
 ```
 
-For the full generated API reference, see the [extractor docs](/api/extractor/).
+For the full generated API reference, see the [extractor docs](/api/extractor/). The [Lambda](./lambda.md) and [Fetch](./fetch.md) adapters wrap the same extraction for API Gateway events and Web `Request` objects.
 
 ## Accessing the Certificate
 
@@ -333,7 +333,7 @@ app.use(clientCertificateAuth(allowCA(readFileSync('ca.pem')), {
 }));
 ```
 
-When `includeChain: true`, the certificate object includes `issuerCertificate` linking to the issuer's certificate (and so on up the chain). This works consistently for both socket-based and header-based extraction, except on Node.js 26.8.0 and later, where a Node.js regression ([nodejs/node#65579](https://github.com/nodejs/node/issues/65579)) leaves `issuerCertificate` unset on the socket path; header-based extraction is unaffected. See [Troubleshooting](./troubleshooting#certificate-chain-missing-on-node-js-26-8-0-and-later).
+When `includeChain: true`, the certificate object includes `issuerCertificate` linking to the issuer's certificate (and so on up the chain) for both socket-based and header-based extraction. The chains end differently: a socket-based chain ends in a root whose `issuerCertificate` is the root itself (Node's behavior), while a header-based chain ends at the last forwarded certificate, whose `issuerCertificate` is `undefined`. Walk chains with a depth limit or a visited check rather than `while (cert.issuerCertificate)`. On Node.js 26.8.0 and later, a Node.js regression ([nodejs/node#65579](https://github.com/nodejs/node/issues/65579)) leaves `issuerCertificate` unset on the socket path, so no socket-based chain is walkable there; header-based extraction is unaffected. See [Troubleshooting](./troubleshooting#certificate-chain-missing-on-node-js-26-8-0-and-later).
 
 For header-based extraction the first certificate in the header is the leaf. If it is empty or unparseable the header is rejected with `header_missing_or_malformed` rather than promoting the next certificate into the leaf position. See [Chains in a Single Header](./reverse-proxy.md#chains-in-a-single-header) for the per-encoding details.
 

@@ -208,17 +208,17 @@ The `verifyValue` comparison is exact (case-sensitive, no whitespace trimming); 
 
 Example nginx configuration:
 ```nginx
-# Strip any existing headers from clients
-proxy_set_header X-SSL-Client-Cert "";
-proxy_set_header X-SSL-Client-Verify "";
-
-# Always send verification status
-proxy_set_header X-SSL-Client-Verify $ssl_client_verify;
-
-# Only send cert if verified
-if ($ssl_client_verify = SUCCESS) {
-    proxy_set_header X-SSL-Client-Cert $ssl_client_escaped_cert;
+# http context: expose the certificate only when nginx verified it.
+# proxy_set_header is not allowed in a server-level if block, so gate it with a map.
+map $ssl_client_verify $ssl_client_cert_if_verified {
+    SUCCESS $ssl_client_escaped_cert;
+    default "";
 }
+
+# server or location context. proxy_set_header replaces any value the client
+# sent, and an empty value removes the header entirely.
+proxy_set_header X-SSL-Client-Verify $ssl_client_verify;
+proxy_set_header X-SSL-Client-Cert $ssl_client_cert_if_verified;
 ```
 
 The verification header is checked before certificate parsing. If the header is absent or doesn't match the expected value, the request is rejected immediately — the certificate header is never read.
