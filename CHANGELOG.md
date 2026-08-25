@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.8] - 2026-08-25
+
+### Security
+
+- **A damaged leaf no longer promotes the next certificate in the header** (backport of [#187](https://github.com/tgies/client-certificate-auth/pull/187), [#189](https://github.com/tgies/client-certificate-auth/pull/189)) — `url-pem-aws`, `xfcc`, and `base64-der` dropped unparseable entries before picking the leaf, so an empty or mangled first entry let the next certificate become the authenticated identity. The first entry must now parse, and non-whitespace ahead of the first PEM block rejects the header.
+
 ## [1.3.7] - 2026-06-11
 
 ### Fixed
@@ -225,6 +231,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix handling of empty certificates
 - Unit testing with mocks
 
+[1.3.8]: https://github.com/tgies/client-certificate-auth/compare/v1.3.7...v1.3.8
+[1.3.7]: https://github.com/tgies/client-certificate-auth/compare/v1.3.6...v1.3.7
 [1.3.6]: https://github.com/tgies/client-certificate-auth/compare/v1.3.5...v1.3.6
 [1.3.5]: https://github.com/tgies/client-certificate-auth/compare/v1.3.4...v1.3.5
 [1.3.4]: https://github.com/tgies/client-certificate-auth/compare/v1.3.3...v1.3.4
