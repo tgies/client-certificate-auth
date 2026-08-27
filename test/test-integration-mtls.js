@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import https from 'node:https';
-import { constants } from 'node:crypto';
 import clientCertificateAuth from '../lib/clientCertificateAuth.js';
 import {
     allowCN,
@@ -478,11 +477,7 @@ describe('includeChain mTLS Integration', () => {
                 cert: serverPems.cert,
                 ca: [caPems.cert],
                 requestCert: true,
-                rejectUnauthorized: false,
-                // A resumed TLS 1.3 session restores only the leaf, so
-                // getPeerCertificate(true) would omit issuerCertificate. Disable
-                // tickets to force a full handshake and keep the chain present.
-                secureOptions: constants.SSL_OP_NO_TICKET,
+                rejectUnauthorized: true,
             },
             (req, res) => {
                 const middleware = clientCertificateAuth(
