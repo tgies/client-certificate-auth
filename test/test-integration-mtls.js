@@ -453,6 +453,7 @@ describe('includeChain mTLS Integration', () => {
     let server;
     let serverPort;
     let capturedCert;
+    let capturedDiag;
 
     beforeAll(async () => {
         const certs = await generateMtlsCertificates();
@@ -484,6 +485,12 @@ describe('includeChain mTLS Integration', () => {
                 secureOptions: constants.SSL_OP_NO_TICKET,
             },
             (req, res) => {
+                capturedDiag = {
+                    reused: req.socket.isSessionReused(),
+                    proto: req.socket.getProtocol(),
+                    authorized: req.socket.authorized,
+                    authErr: String(req.socket.authorizationError),
+                };
                 const middleware = clientCertificateAuth(
                     (cert) => {
                         capturedCert = cert;
@@ -539,6 +546,10 @@ describe('includeChain mTLS Integration', () => {
                         assert.ok(capturedCert, 'validation callback was not invoked');
                         assert.equal(capturedCert.subject.CN, 'Test Chain Client');
                         const issuer = capturedCert.issuerCertificate;
+                        if (!issuer) {
+                             
+                            console.error('DIAG-includeChain', JSON.stringify({ ...capturedDiag, certKeys: Object.keys(capturedCert), hasRaw: !!capturedCert.raw, issuerType: typeof capturedCert.issuerCertificate, statusCode: res.statusCode }));
+                        }
                         assert.ok(issuer, 'cert.issuerCertificate should be present');
                         assert.equal(issuer.subject.CN, 'Test Intermediate CA');
                         const root = issuer.issuerCertificate;
