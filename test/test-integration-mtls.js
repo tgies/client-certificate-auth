@@ -453,6 +453,7 @@ describe('includeChain mTLS Integration', () => {
     let serverPort;
     let capturedCert;
     let capturedDiag;
+    let handshakeIssuer;
 
     beforeAll(async () => {
         const certs = await generateMtlsCertificates();
@@ -471,6 +472,7 @@ describe('includeChain mTLS Integration', () => {
 
     function startServer(middlewareOptions, done) {
         capturedCert = null;
+        handshakeIssuer = 'not-fired';
         server = https.createServer(
             {
                 key: serverPems.key,
@@ -503,6 +505,7 @@ describe('includeChain mTLS Integration', () => {
                             capturedIssuer: capturedCert ? typeof capturedCert.issuerCertificate : 'no-cert',
                             recallIssuer: typeof recall.issuerCertificate,
                             recall2Issuer: typeof recall2.issuerCertificate,
+                            handshakeIssuer,
                             sameRaw: !!(capturedCert && capturedCert.raw && recall.raw && Buffer.isBuffer(recall.raw) && recall.raw.equals(capturedCert.raw)),
                             x509,
                         };
@@ -519,6 +522,14 @@ describe('includeChain mTLS Integration', () => {
                 });
             },
         );
+        server.on('secureConnection', (tlsSock) => {
+            try {
+                const c = tlsSock.getPeerCertificate(true);
+                handshakeIssuer = c ? typeof c.issuerCertificate : 'no-cert';
+            } catch (e) {
+                handshakeIssuer = 'err:' + String(e);
+            }
+        });
         server.listen(0, 'localhost', () => {
             serverPort = server.address().port;
             done();
