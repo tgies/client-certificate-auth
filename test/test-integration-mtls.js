@@ -479,7 +479,9 @@ describe('includeChain mTLS Integration', () => {
                 cert: serverPems.cert,
                 ca: [caPems.cert],
                 requestCert: true,
-                rejectUnauthorized: true,
+                rejectUnauthorized: false,
+                minVersion: 'TLSv1.2',
+                maxVersion: 'TLSv1.2',
             },
             (req, res) => {
                 const middleware = clientCertificateAuth(
