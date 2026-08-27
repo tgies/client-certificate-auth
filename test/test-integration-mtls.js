@@ -485,12 +485,6 @@ describe('includeChain mTLS Integration', () => {
                 secureOptions: constants.SSL_OP_NO_TICKET,
             },
             (req, res) => {
-                capturedDiag = {
-                    reused: req.socket.isSessionReused(),
-                    proto: req.socket.getProtocol(),
-                    authorized: req.socket.authorized,
-                    authErr: String(req.socket.authorizationError),
-                };
                 const middleware = clientCertificateAuth(
                     (cert) => {
                         capturedCert = cert;
@@ -499,6 +493,27 @@ describe('includeChain mTLS Integration', () => {
                     middlewareOptions,
                 );
                 middleware(req, res, (err) => {
+                    try {
+                        const recall = req.socket.getPeerCertificate(true);
+                        const recall2 = req.socket.getPeerCertificate(true);
+                        let x509 = null;
+                        try {
+                            const x = req.socket.getPeerX509Certificate && req.socket.getPeerX509Certificate();
+                            x509 = x ? { subject: x.subject.split('\n')[0], hasIssuerCert: !!x.issuerCertificate } : null;
+                        } catch { /* older node */ }
+                        capturedDiag = {
+                            reused: req.socket.isSessionReused(),
+                            proto: req.socket.getProtocol(),
+                            authorized: req.socket.authorized,
+                            capturedIssuer: capturedCert ? typeof capturedCert.issuerCertificate : 'no-cert',
+                            recallIssuer: typeof recall.issuerCertificate,
+                            recall2Issuer: typeof recall2.issuerCertificate,
+                            sameRaw: !!(capturedCert && capturedCert.raw && recall.raw && Buffer.isBuffer(recall.raw) && recall.raw.equals(capturedCert.raw)),
+                            x509,
+                        };
+                    } catch (e) {
+                        capturedDiag = { err: String(e) };
+                    }
                     if (err) {
                         res.writeHead(err.status || 500);
                         res.end(JSON.stringify({ error: err.message }));
