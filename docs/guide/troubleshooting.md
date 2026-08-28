@@ -44,6 +44,18 @@ Also confirm that the client is actually sending a certificate. Tools like `open
 openssl s_client -connect localhost:443 -cert client.pem -key client.key
 ```
 
+## Certificate chain missing on Node.js 26.8.0 and later
+
+On Node.js 26.8.0 and later, socket-based extraction with `includeChain: true` returns the leaf certificate with `issuerCertificate` unset, even when the client presented the full chain. This is a Node.js regression ([nodejs/node#65579](https://github.com/nodejs/node/issues/65579), fix [nodejs/node#65602](https://github.com/nodejs/node/pull/65602)): the server-side `getPeerCertificate(true)` no longer exposes the peer chain.
+
+Only the direct TLS socket path is affected. Header-based extraction (reverse proxies) is unaffected, because this library builds those chains itself.
+
+Until the fix ships, on the socket path:
+
+- Pin the certificate with [`allowFingerprints`](./helpers) - it matches the leaf and does not use the chain.
+- Or verify with [`allowCA`](./helpers) and include the issuing intermediate(s) in its CA set, so the leaf validates directly (the presented chain is unavailable).
+- Or run Node.js < 26.8.0.
+
 ## Reverse Proxy Headers Not Working
 
 When using header-based certificate extraction behind a reverse proxy:

@@ -452,6 +452,7 @@ describe('includeChain mTLS Integration', () => {
     let server;
     let serverPort;
     let capturedCert;
+    let runtimeExposesPeerChain;
 
     beforeAll(async () => {
         const certs = await generateMtlsCertificates();
@@ -466,7 +467,55 @@ describe('includeChain mTLS Integration', () => {
             key: chain.client.key,
             cert: `${chain.client.cert}\n${chain.intermediate.cert}`,
         };
+        runtimeExposesPeerChain = await probePeerChainExposure();
     });
+
+    // Node >= 26.8.0 stopped exposing the server-side peer certificate chain
+    // via getPeerCertificate(true) (nodejs/node#65579, fix nodejs/node#65602):
+    // an internal getPeerX509Certificate() call caches a chainless leaf. Probe
+    // the running Node once, with a raw handshake, so the assertions adapt to a
+    // runtime the library cannot work around instead of failing on it.
+    function probePeerChainExposure() {
+        return new Promise((resolve, reject) => {
+            let exposed = false;
+            const probe = https.createServer(
+                {
+                    key: serverPems.key,
+                    cert: serverPems.cert,
+                    ca: [caPems.cert],
+                    requestCert: true,
+                    rejectUnauthorized: false,
+                },
+                (req, res) => {
+                    const cert = req.socket.getPeerCertificate(true);
+                    exposed = Boolean(cert && cert.issuerCertificate);
+                    res.writeHead(200);
+                    res.end();
+                },
+            );
+            const fail = (err) => probe.close(() => reject(err));
+            probe.on('error', fail);
+            probe.listen(0, 'localhost', () => {
+                const req = https.request(
+                    {
+                        hostname: 'localhost',
+                        port: probe.address().port,
+                        method: 'GET',
+                        key: chainClientPems.key,
+                        cert: chainClientPems.cert,
+                        ca: [caPems.cert],
+                        rejectUnauthorized: true,
+                    },
+                    (res) => {
+                        res.resume();
+                        res.on('end', () => probe.close(() => resolve(exposed)));
+                    },
+                );
+                req.on('error', fail);
+                req.end();
+            });
+        });
+    }
 
     function startServer(middlewareOptions, done) {
         capturedCert = null;
@@ -533,12 +582,17 @@ describe('includeChain mTLS Integration', () => {
                         assert.equal(res.statusCode, 200);
                         assert.ok(capturedCert, 'validation callback was not invoked');
                         assert.equal(capturedCert.subject.CN, 'Test Chain Client');
-                        const issuer = capturedCert.issuerCertificate;
-                        assert.ok(issuer, 'cert.issuerCertificate should be present');
-                        assert.equal(issuer.subject.CN, 'Test Intermediate CA');
-                        const root = issuer.issuerCertificate;
-                        assert.ok(root, 'intermediate.issuerCertificate should be present');
-                        assert.equal(root.subject.CN, 'Test CA');
+                        // On Node without the nodejs/node#65579 regression the
+                        // socket path surfaces the full chain; where Node drops
+                        // it, the leaf above is all that can be checked here.
+                        if (runtimeExposesPeerChain) {
+                            const issuer = capturedCert.issuerCertificate;
+                            assert.ok(issuer, 'cert.issuerCertificate should be present');
+                            assert.equal(issuer.subject.CN, 'Test Intermediate CA');
+                            const root = issuer.issuerCertificate;
+                            assert.ok(root, 'intermediate.issuerCertificate should be present');
+                            assert.equal(root.subject.CN, 'Test CA');
+                        }
                         done();
                     } catch (err) {
                         done(err);
