@@ -275,22 +275,18 @@ describe('parsers module', () => {
         });
 
         it('should return null when value has only starting quote (malformed)', () => {
-            // Tests: value.startsWith('"') && value.endsWith('"')
-            // If only one quote is present, the quote becomes part of the value
-            // and breaks URL decoding or certificate parsing
+            // One quote leaves the element's quoting open, so it is rejected
+            // before any value is read.
             const encodedPem = encodeURIComponent(testPem);
-            const xfcc = `Hash=abc;Cert="${encodedPem}`;  // Missing end quote
+            const xfcc = `Hash=abc;Cert="${encodedPem}`;
             const cert = parseXfcc(xfcc);
-            // Fails because leading quote becomes part of value
             assert.equal(cert, null);
         });
 
         it('should return null when value has only ending quote (malformed)', () => {
-            // Tests: value.startsWith('"') && value.endsWith('"')
             const encodedPem = encodeURIComponent(testPem);
-            const xfcc = `Hash=abc;Cert=${encodedPem}"`;  // Only end quote
+            const xfcc = `Hash=abc;Cert=${encodedPem}"`;
             const cert = parseXfcc(xfcc);
-            // Fails because trailing quote becomes part of value
             assert.equal(cert, null);
         });
 
@@ -342,6 +338,89 @@ describe('parsers module', () => {
 
             assert.ok(cert, 'Should not be broken by commas inside quoted Subject');
             assert.equal(cert.subject.CN, 'Test Parser Client');
+        });
+
+        it('should handle quoted Subject fields containing semicolons', () => {
+            const encodedPem = encodeURIComponent(testPem);
+            const xfcc = `Subject="CN=client;OU=team";Cert="${encodedPem}"`;
+            const cert = parseXfcc(xfcc);
+
+            assert.ok(cert, 'Should not be broken by semicolons inside quoted Subject');
+            assert.equal(cert.subject.CN, 'Test Parser Client');
+        });
+
+        it('should not take a Cert pair injected into a quoted Subject', async () => {
+            const forged = await generateClientCertificate('Forged Client');
+            const encodedPem = encodeURIComponent(testPem);
+            const encodedForged = encodeURIComponent(forged.cert);
+            // A client whose DN carries semicolons controls this text; splitting
+            // the element on them would let the DN contribute its own pairs.
+            const xfcc = `Cert="${encodedPem}";Subject="CN=x;Cert=${encodedForged};OU=y"`;
+            const cert = parseXfcc(xfcc);
+
+            assert.ok(cert);
+            assert.equal(cert.subject.CN, 'Test Parser Client');
+        });
+
+        it('should not take a Chain pair injected into a quoted Subject', async () => {
+            const forged = await generateClientCertificate('Forged Client');
+            const encodedPem = encodeURIComponent(testPem);
+            const encodedForged = encodeURIComponent(forged.cert);
+            const xfcc = `Cert="${encodedPem}";Subject="CN=x;Chain=${encodedForged};OU=y"`;
+            const cert = parseXfcc(xfcc);
+
+            assert.ok(cert);
+            assert.equal(cert.subject.CN, 'Test Parser Client');
+        });
+
+        it('should reject an element that leaves a quoted value open', () => {
+            const encodedPem = encodeURIComponent(testPem);
+            // Parsing on would read every remaining delimiter as part of the value.
+            assert.equal(parseXfcc(`Cert="${encodedPem}";Subject="CN=unterminated`), null);
+            assert.equal(parseXfcc(`Subject="CN=unterminated,Cert="${encodedPem}"`), null);
+
+            const closed = parseXfcc(`Cert="${encodedPem}";Subject="CN=closed"`);
+            assert.ok(closed);
+            assert.equal(closed.subject.CN, 'Test Parser Client');
+        });
+
+        it('should reject a value quoted on only one side', () => {
+            const encodedPem = encodeURIComponent(testPem);
+            // Element quoting is balanced, so this reaches the per-value check.
+            assert.equal(parseXfcc(`Cert="${encodedPem}"x`), null);
+            assert.equal(parseXfcc(`Cert=x"${encodedPem}"`), null);
+        });
+
+        it('should reject a value ending in a backslash rather than resolve the ambiguity', async () => {
+            const forged = await generateClientCertificate('Forged Client');
+            const encodedPem = encodeURIComponent(testPem);
+            const encodedForged = encodeURIComponent(forged.cert);
+            // Envoy escapes an embedded quote but not an embedded backslash, so
+            // a DN ending in one is indistinguishable from an escaped quote.
+            assert.equal(parseXfcc(`Subject="CN=ends\\";Cert="${encodedPem}"`), null);
+            // An even run reads the same way here; run-parity would close the
+            // quoting on it instead.
+            assert.equal(parseXfcc(`Subject="CN=ends\\\\";Cert="${encodedPem}"`), null);
+            // Resolving it the other way would close the quoting here and take
+            // the pair the value carries; keeping it open leaves the genuine
+            // Cert as the only one the element contributes.
+            const kept = parseXfcc(`Cert="${encodedPem}";URI="a\\\\";Cert=${encodedForged}"`);
+            assert.ok(kept);
+            assert.equal(kept.subject.CN, 'Test Parser Client');
+        });
+
+        it('should reject an element carrying two Cert pairs', async () => {
+            const forged = await generateClientCertificate('Forged Client');
+            const xfcc = `Cert="${encodeURIComponent(testPem)}";Cert="${encodeURIComponent(forged.cert)}"`;
+
+            assert.equal(parseXfcc(xfcc), null);
+        });
+
+        it('should reject an element carrying two Chain pairs', async () => {
+            const forged = await generateClientCertificate('Forged Client');
+            const xfcc = `Chain="${encodeURIComponent(testPem)}";Chain="${encodeURIComponent(forged.cert)}"`;
+
+            assert.equal(parseXfcc(xfcc), null);
         });
 
         it('should handle escaped quotes inside quoted values', () => {
