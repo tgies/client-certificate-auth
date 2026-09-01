@@ -17,7 +17,7 @@ import https from 'node:https';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { generateMtlsCertificates, generateClientCertificate, generateIntermediateChain } from './test-helpers.js';
+import { generateMtlsCertificates, generateClientCertificate, generateIntermediateChain, pemToDer } from './test-helpers.js';
 import os from 'node:os';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -32,6 +32,7 @@ let NGINX_OPTIONAL_PORT;
 let ENVOY_PORT;
 let ENVOY_CHAIN_ONLY_PORT;
 let TRAEFIK_PORT;
+let TRAEFIK_OPTIONAL_PORT;
 const DOCKER_TIMEOUT = 120000;
 
 /**
@@ -82,7 +83,7 @@ async function generateAndWriteCertificates() {
 /**
  * Make HTTPS request with client certificate.
  */
-function makeRequest(url, clientCert, clientKey, caCert) {
+function makeRequest(url, clientCert, clientKey, caCert, headers = {}) {
     return new Promise((resolve, reject) => {
         const urlObj = new URL(url);
 
@@ -91,6 +92,7 @@ function makeRequest(url, clientCert, clientKey, caCert) {
             port: urlObj.port || 443,
             path: urlObj.pathname,
             method: 'GET',
+            headers,
             cert: clientCert,
             key: clientKey,
             ca: caCert,
@@ -145,8 +147,13 @@ async function waitForService(url, clientCert, clientKey, caCert, maxAttempts = 
     return false;
 }
 
-// Skip all tests if Docker is not available
-const describeIfDocker = isDockerAvailable() ? describe : describe.skip;
+// Skip all tests if Docker is not available. Under CI a silent skip would
+// pass the required check on zero tests, so fail instead.
+const dockerAvailable = isDockerAvailable();
+if (!dockerAvailable && process.env.CI) {
+    throw new Error('Docker is required to run the E2E proxy suite under CI');
+}
+const describeIfDocker = dockerAvailable ? describe : describe.skip;
 
 describeIfDocker('Reverse Proxy Integration Tests', () => {
     let certs;
@@ -185,7 +192,8 @@ describeIfDocker('Reverse Proxy Integration Tests', () => {
         ENVOY_PORT = getPublishedPort('envoy', 443, dockerEnv);
         ENVOY_CHAIN_ONLY_PORT = getPublishedPort('envoy-chain-only', 443, dockerEnv);
         TRAEFIK_PORT = getPublishedPort('traefik', 443, dockerEnv);
-        console.log(`Discovered ports: nginx-strict=${NGINX_STRICT_PORT}, nginx-optional=${NGINX_OPTIONAL_PORT}, envoy=${ENVOY_PORT}, envoy-chain-only=${ENVOY_CHAIN_ONLY_PORT}, traefik=${TRAEFIK_PORT}`);
+        TRAEFIK_OPTIONAL_PORT = getPublishedPort('traefik-optional', 443, dockerEnv);
+        console.log(`Discovered ports: nginx-strict=${NGINX_STRICT_PORT}, nginx-optional=${NGINX_OPTIONAL_PORT}, envoy=${ENVOY_PORT}, envoy-chain-only=${ENVOY_CHAIN_ONLY_PORT}, traefik=${TRAEFIK_PORT}, traefik-optional=${TRAEFIK_OPTIONAL_PORT}`);
 
         // Wait for nginx-strict to be ready
         console.log('Waiting for nginx-strict to be ready...');
@@ -256,6 +264,20 @@ describeIfDocker('Reverse Proxy Integration Tests', () => {
             throw new Error('Traefik failed to start within timeout');
         }
         console.log('Traefik is ready!');
+
+        // Wait for Traefik (optional client auth) to be ready
+        console.log('Waiting for Traefik (optional client auth) to be ready...');
+        const traefikOptionalReady = await waitForService(
+            `https://localhost:${TRAEFIK_OPTIONAL_PORT}/`,
+            certs.client.cert,
+            certs.client.key,
+            certs.ca.cert
+        );
+
+        if (!traefikOptionalReady) {
+            throw new Error('Traefik (optional client auth) failed to start within timeout');
+        }
+        console.log('Traefik (optional client auth) is ready!');
     }, DOCKER_TIMEOUT);
 
     afterAll(() => {
@@ -587,6 +609,130 @@ describeIfDocker('Reverse Proxy Integration Tests', () => {
     });
 
     // Authorization Helpers E2E Tests (using nginx-strict)
+    // A client that reaches the proxy can send its own certificate headers. Each
+    // proxy configuration must replace or drop them so the backend only ever
+    // sees the certificate from the TLS handshake.
+    describe('Forged certificate headers', () => {
+        let forged;
+
+        beforeAll(async () => {
+            forged = await generateClientCertificate('Forged Client');
+        });
+
+        const forgedNginxHeaders = () => ({
+            'X-SSL-Client-Cert': encodeURIComponent(forged.cert),
+            'X-SSL-Client-Verify': 'SUCCESS',
+        });
+        const forgedEnvoyHeaders = () => ({
+            'X-Forwarded-Client-Cert': `Hash=forged;Cert="${encodeURIComponent(forged.cert)}"`,
+        });
+        const forgedTraefikHeaders = () => ({
+            'X-Forwarded-Tls-Client-Cert': pemToDer(forged.cert).toString('base64'),
+        });
+
+        it('nginx-strict replaces a forged X-SSL-Client-Cert with the handshake certificate', async () => {
+            const response = await makeRequest(
+                `https://localhost:${NGINX_STRICT_PORT}/`,
+                certs.client.cert,
+                certs.client.key,
+                certs.ca.cert,
+                forgedNginxHeaders()
+            );
+
+            expect(response.success).toBe(true);
+            expect(response.clientCN).toBe('Test Client');
+        });
+
+        it('nginx-optional replaces a forged X-SSL-Client-Cert with the handshake certificate', async () => {
+            const response = await makeRequest(
+                `https://localhost:${NGINX_OPTIONAL_PORT}/`,
+                certs.client.cert,
+                certs.client.key,
+                certs.ca.cert,
+                forgedNginxHeaders()
+            );
+
+            expect(response.success).toBe(true);
+            expect(response.clientCN).toBe('Test Client');
+        });
+
+        it('nginx-optional drops a forged X-SSL-Client-Cert when no certificate is presented', async () => {
+            const response = await makeRequestWithoutCert(
+                `https://localhost:${NGINX_OPTIONAL_PORT}/`,
+                certs.ca.cert,
+                forgedNginxHeaders()
+            );
+
+            expect(response.success).toBe(false);
+            expect(response.status).toBe(401);
+        });
+
+        it('nginx-optional replaces a forged X-SSL-Client-Verify with its own verification status', async () => {
+            const untrusted = await generateClientCertificate('Untrusted Client');
+
+            const response = await makeRequest(
+                `https://localhost:${NGINX_OPTIONAL_PORT}/helpers/verify-header`,
+                untrusted.cert,
+                untrusted.key,
+                certs.ca.cert,
+                { 'X-SSL-Client-Verify': 'SUCCESS' }
+            );
+
+            expect(response.success).toBe(false);
+            expect(response.status).toBe(401);
+        });
+
+        it('Envoy replaces a forged X-Forwarded-Client-Cert with the handshake certificate', async () => {
+            const response = await makeRequest(
+                `https://localhost:${ENVOY_PORT}/`,
+                certs.client.cert,
+                certs.client.key,
+                certs.ca.cert,
+                forgedEnvoyHeaders()
+            );
+
+            expect(response.success).toBe(true);
+            expect(response.clientCN).toBe('Test Client');
+        });
+
+        it('Traefik replaces a forged X-Forwarded-Tls-Client-Cert with the handshake certificate', async () => {
+            const response = await makeRequest(
+                `https://localhost:${TRAEFIK_PORT}/`,
+                certs.client.cert,
+                certs.client.key,
+                certs.ca.cert,
+                forgedTraefikHeaders()
+            );
+
+            expect(response.success).toBe(true);
+            expect(response.clientCN).toBe('Test Client');
+        });
+
+        it('Traefik with optional client auth replaces a forged header when a certificate is presented', async () => {
+            const response = await makeRequest(
+                `https://localhost:${TRAEFIK_OPTIONAL_PORT}/`,
+                certs.client.cert,
+                certs.client.key,
+                certs.ca.cert,
+                forgedTraefikHeaders()
+            );
+
+            expect(response.success).toBe(true);
+            expect(response.clientCN).toBe('Test Client');
+        });
+
+        it('Traefik with optional client auth drops a forged header when no certificate is presented', async () => {
+            const response = await makeRequestWithoutCert(
+                `https://localhost:${TRAEFIK_OPTIONAL_PORT}/`,
+                certs.ca.cert,
+                forgedTraefikHeaders()
+            );
+
+            expect(response.success).toBe(false);
+            expect(response.status).toBe(401);
+        });
+    });
+
     describe('Authorization Helpers', () => {
         describe('allowCN', () => {
             it('should accept matching CN via real proxy', async () => {
@@ -688,7 +834,7 @@ describeIfDocker('Reverse Proxy Integration Tests', () => {
     });
 });
 
-function makeRequestWithoutCert(url, caCert) {
+function makeRequestWithoutCert(url, caCert, headers = {}) {
     return new Promise((resolve, reject) => {
         const urlObj = new URL(url);
 
@@ -697,6 +843,7 @@ function makeRequestWithoutCert(url, caCert) {
             port: urlObj.port || 443,
             path: urlObj.pathname,
             method: 'GET',
+            headers,
             ca: caCert,
             rejectUnauthorized: true,
             // No cert/key provided
