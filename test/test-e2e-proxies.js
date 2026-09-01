@@ -1,14 +1,14 @@
 /**
  * Integration tests for reverse proxy certificate header forwarding.
- * 
+ *
  * These tests run real reverse proxies in Docker containers and verify
  * that our parsers correctly handle the actual header formats produced
  * by each proxy.
- * 
+ *
  * Prerequisites:
  * - Docker and Docker Compose must be installed
  * - Run with: npm run test:e2e
- * 
+ *
  * @jest-environment node
  */
 
@@ -64,7 +64,6 @@ async function generateAndWriteCertificates() {
     // Make directory world-readable (Envoy runs as uid 101, not root)
     fs.chmodSync(CERTS_DIR, 0o755);
 
-
     const certs = await generateMtlsCertificates();
 
     // Write certificates to disk for Docker containers
@@ -74,8 +73,6 @@ async function generateAndWriteCertificates() {
     fs.writeFileSync(path.join(CERTS_DIR, 'server.key'), certs.server.key, { mode: 0o644 });
     fs.writeFileSync(path.join(CERTS_DIR, 'client.pem'), certs.client.cert, { mode: 0o644 });
     fs.writeFileSync(path.join(CERTS_DIR, 'client.key'), certs.client.key, { mode: 0o644 });
-
-
 
     return certs;
 }
@@ -559,7 +556,6 @@ describeIfDocker('Reverse Proxy Integration Tests', () => {
                 certs.ca.cert
             );
 
-
             expect(response.success).toBe(true);
             expect(response.clientCN).toBe('Test Client');
             expect(response.headerUsed).toBe('x-forwarded-tls-client-cert');
@@ -869,5 +865,3 @@ function makeRequestWithoutCert(url, caCert, headers = {}) {
         req.end();
     });
 }
-
-

@@ -85,7 +85,6 @@ describe('clientCertificateAuth (CommonJS)', () => {
             headers: {}
         };
 
-
         const mockUnauthReq = {
             secure: true,
             socket: { authorized: false, authorizationError: 'CERT_UNTRUSTED', getPeerCertificate: getMockPeerCertificate },

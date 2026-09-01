@@ -1,6 +1,6 @@
 /**
  * Backend server for E2E tests that uses our actual middleware.
- * 
+ *
  * Uses path-based routing to determine which header configuration to use:
  * - /nginx → X-SSL-Client-Cert (url-pem)
  * - /envoy → X-Forwarded-Client-Cert (xfcc)
@@ -174,4 +174,3 @@ const server = http.createServer((req, res) => {
 server.listen(3000, '0.0.0.0', () => {
     console.log('E2E Backend with path-based routing listening on port 3000');
 });
-
