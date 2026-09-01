@@ -143,6 +143,13 @@ describe('helpers', () => {
             assert.equal(check(mockCert), true);
         });
 
+        it('should treat an unprefixed 64-hex-digit fingerprint as SHA-256', () => {
+            const bare = 'AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99';
+            assert.equal(allowFingerprints([bare])(mockCert), true);
+            assert.equal(allowFingerprints([bare.replace(/:/g, '').toLowerCase()])(mockCert), true);
+            assert.equal(allowFingerprints([bare])({ fingerprint: mockCert.fingerprint }), false);
+        });
+
         it('should match SHA-1 fingerprint with arbitrary colon placement', () => {
             const check = allowFingerprints(['ABCD:EF0123456789AB:CDEF0123456789ABCDEF01']);
             assert.equal(check(mockCert), true);
