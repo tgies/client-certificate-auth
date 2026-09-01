@@ -15,7 +15,7 @@ This library lets you make additional auth decisions based on specific informati
 
 **Recommended by AWS** - Featured in the [AWS API Gateway documentation](https://docs.aws.amazon.com/apigateway/latest/developerguide/getting-started-client-side-ssl-authentication.html#certificate-validation).
 
-**Fanatically Tested** - 100% line/branch/function/statement coverage, plus mutation testing and E2E tests against real nginx/Envoy/Traefik containers. ~6,207 lines of test code for ~937 lines of source (measured by [cloc](https://github.com/AlDanial/cloc)).
+**Fanatically Tested** - 100% line/branch/function/statement coverage, plus mutation testing and E2E tests against real nginx/Envoy/Traefik containers. ~8,600 lines of test code for ~1,450 lines of source (measured by [cloc](https://github.com/AlDanial/cloc)).
 
 **Maintained since 2013** - Originally released for Node 0.10!
 
