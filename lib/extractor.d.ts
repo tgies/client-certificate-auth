@@ -1,17 +1,9 @@
-/**
- * @typedef {Object} ExtractorOptions
- * @property {'aws-alb' | 'aws-alb-verify' | 'azure-app-service' | 'cloudflare' | 'cloudflare-rfc9440' | 'envoy' | 'traefik'} [certificateSource] - Preset configuration
- * @property {string} [certificateHeader] - Custom header name
- * @property {string} [chainHeader] - Optional second header carrying the certificate chain
- * @property {'url-pem' | 'url-pem-aws' | 'xfcc' | 'base64-der' | 'rfc9440'} [headerEncoding] - Header encoding
- * @property {boolean} [fallbackToSocket=false] - Try socket if header extraction fails
- * @property {boolean} [includeChain=false] - Include issuerCertificate chain
- * @property {string} [verifyHeader] - Header name for upstream verification status. Pairs
- *   with `verifyValue`, and requires `certificateSource` or `certificateHeader`:
- *   verification applies to header-based extraction only.
- * @property {string} [verifyValue] - Expected value for successful verification. Pairs
- *   with `verifyHeader`.
+/*!
+ * client-certificate-auth/extractor - TypeScript declarations
+ * Copyright (C) 2013-2026 Tony Gies
+ * @license MIT
  */
+
 /**
  * Extract client certificate from request.
  *
@@ -19,17 +11,16 @@
  * extraction (direct TLS connections). Returns a structured result object instead of
  * throwing or using callbacks, making it suitable for any framework adapter.
  *
- * @param {Object} req - Request object with headers and optional socket. A missing or
+ * @param req - Request object with headers and optional socket. A missing or
  *   non-object `headers` field, one whose accessor throws, and one holding a
  *   property whose accessor throws are all treated as having no headers.
- * @param {Record<string, string | string[] | undefined>} [req.headers] - HTTP headers object
- * @param {string[]} [req.rawHeaders] - Node's raw header list; a certificate or
+ * @param req.headers - HTTP headers object
+ * @param req.rawHeaders - Node's raw header list; a certificate or
  *   verification header that appears more than once is rejected
- * @param {Object} [req.socket] - TLS socket with getPeerCertificate() method
- * @param {boolean} [req.socket.authorized] - Whether socket was authorized
- * @param {(detailed: boolean) => import('tls').PeerCertificate} [req.socket.getPeerCertificate] - Get peer certificate
- * @param {ExtractorOptions} [options={}] - Extraction options
- * @returns {ExtractionResult}
+ * @param req.socket - TLS socket with getPeerCertificate() method
+ * @param req.socket.authorized - Whether socket was authorized
+ * @param req.socket.getPeerCertificate - Get peer certificate
+ * @param options - Extraction options. Omitted is the same as `{}`.
  *
  * @example
  * // AWS ALB header extraction
