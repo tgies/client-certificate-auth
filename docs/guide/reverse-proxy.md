@@ -135,11 +135,13 @@ HAProxy's native certificate forwarding (`http-request set-header ... %[ssl_c_de
 
 The leaf entry has to parse on its own. If it is empty, unparseable, or preceded by anything other than whitespace, the whole header is rejected and extraction fails with `header_missing_or_malformed`. A leaf damaged in transit therefore produces a 401 rather than authenticating the request as the next certificate in the header. Entries after the leaf are dropped individually when they fail to parse, and the chain links past them.
 
+A header value carries at most 10 certificates (`MAX_CHAIN_CERTS`, exported from `client-certificate-auth/parsers`). Longer inputs are rejected before any certificate is parsed.
+
 ## Chain Header
 
 Some proxies forward the leaf certificate and the certificate chain in two separate headers. RFC 9440 is the canonical example: the leaf goes in `Client-Cert` and the chain in `Client-Cert-Chain` (a comma-separated structured-field list of `:base64:` items, leaf-nearest first).
 
-The `chainHeader` option pairs a chain header with the configured leaf header. The chain header value is split on commas, each item is parsed with the same `headerEncoding`, and the resulting certificates are linked via `issuerCertificate` after the leaf. Set `includeChain: true` to keep the chain on the request object; otherwise the chain is parsed and dropped (matching the existing single-header chain stripping behavior).
+The `chainHeader` option pairs a chain header with the configured leaf header. The chain header value is split on commas, each item is parsed with the same `headerEncoding`, and the resulting certificates are linked via `issuerCertificate` after the leaf. Set `includeChain: true` to keep the chain on the request object; otherwise the chain is parsed and dropped (matching the existing single-header chain stripping behavior). The leaf header and chain header together carry at most `MAX_CHAIN_CERTS` certificates; a longer chain header rejects the request with `header_missing_or_malformed`, discarding the leaf with it (with `fallbackToSocket: true` the socket certificate is used instead).
 
 ```javascript
 // Cloudflare RFC 9440 (chain header is configured automatically by the preset)
