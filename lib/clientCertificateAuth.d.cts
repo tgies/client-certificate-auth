@@ -1,3 +1,9 @@
+/*!
+ * client-certificate-auth - CommonJS type declarations
+ * Copyright (C) 2013-2026 Tony Gies
+ * @license MIT
+ */
+
 import type { IncomingMessage, ServerResponse } from 'http';
 import type { Socket } from 'net';
 import type { PeerCertificate, DetailedPeerCertificate } from 'tls';
