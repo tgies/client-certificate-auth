@@ -78,6 +78,9 @@ export declare function allowSerial(serials: string[]): ValidationCallback;
 /**
  * Create a validation callback that allows certificates with matching Subject Alternative Names.
  * Checks the subjectaltname field (format: "DNS:example.com, email:user@example.com").
+ * Bare values (no type prefix) match under any SAN type. Comparison is case-insensitive
+ * except for URI userinfo, path, query, and fragment; JSON-quoted values in Node's SAN rendering
+ * are decoded first.
  * @param values - Allowed SAN values (e.g., "DNS:example.com", "example.com", "user@example.com")
  */
 export declare function allowSAN(values: string[]): ValidationCallback;

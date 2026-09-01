@@ -555,12 +555,69 @@ describe('helpers', () => {
             assert.equal(check(certMalformedSAN), false);
         });
 
-        it('should match value-only for SAN with short type prefix', () => {
-            // Kills UnaryOperator mutation: colonIdx !== -1 → colonIdx !== +1
-            // IP: has colon at index 2, but a synthetic 1-char prefix has colon at index 1
+        it('should compare an unrecognized type prefix as part of the value', () => {
             const cert = { subjectaltname: 'X:short-prefix-value' };
-            const check = allowSAN(['short-prefix-value']);
-            assert.equal(check(cert), true);
+            assert.equal(allowSAN(['x:SHORT-prefix-value'])(cert), true);
+            assert.equal(allowSAN(['short-prefix-value'])(cert), false);
+        });
+
+        it('should not match a typed value against a different SAN type', () => {
+            assert.equal(allowSAN(['DNS:alt@example.com'])(mockCert), false);
+            assert.equal(allowSAN(['email:test.example.com'])(mockCert), false);
+        });
+
+        it('should accept IP: as an alias for IP Address:', () => {
+            const cert = { subjectaltname: 'IP Address:10.0.0.1' };
+            assert.equal(allowSAN(['IP:10.0.0.1'])(cert), true);
+            assert.equal(allowSAN(['ip:10.0.0.2'])(cert), false);
+        });
+
+        it('should split the DirName and Registered ID prefixes OpenSSL renders', () => {
+            const dirName = { subjectaltname: 'DirName:/CN=Directory Name' };
+            assert.equal(allowSAN(['DirName:/CN=Directory Name'])(dirName), true);
+            assert.equal(allowSAN(['dirname:/cn=directory name'])(dirName), true);
+            assert.equal(allowSAN(['DNS:/CN=Directory Name'])(dirName), false);
+
+            const registeredId = { subjectaltname: 'Registered ID:1.3.6.1.4.1.311.20.2.3' };
+            assert.equal(allowSAN(['Registered ID:1.3.6.1.4.1.311.20.2.3'])(registeredId), true);
+            assert.equal(allowSAN(['DNS:1.3.6.1.4.1.311.20.2.3'])(registeredId), false);
+        });
+
+        it('should keep URI paths case-sensitive while folding scheme and host', () => {
+            const cert = { subjectaltname: 'URI:https://Example.com/Path/A' };
+            assert.equal(allowSAN(['URI:https://example.com/path/a'])(cert), false);
+            assert.equal(allowSAN(['URI:HTTPS://EXAMPLE.COM/Path/A'])(cert), true);
+            assert.equal(allowSAN(['https://example.com/Path/A'])(cert), true);
+            assert.equal(allowSAN(['uri:https://example.com/Path/A?Q=1'])(cert), false);
+        });
+
+        it('should fold only the scheme of URIs without an authority', () => {
+            const cert = { subjectaltname: 'URI:urn:example:Abc' };
+            assert.equal(allowSAN(['URI:URN:example:Abc'])(cert), true);
+            assert.equal(allowSAN(['URI:urn:example:abc'])(cert), false);
+            assert.equal(allowSAN(['URI:not a uri'])({ subjectaltname: 'URI:Not A URI' }), false);
+        });
+
+        it('should keep URI userinfo case-sensitive', () => {
+            const cert = { subjectaltname: 'URI:https://User@Example.com:8443/Path' };
+            assert.equal(allowSAN(['URI:HTTPS://User@EXAMPLE.COM:8443/Path'])(cert), true);
+            assert.equal(allowSAN(['URI:https://user@example.com:8443/Path'])(cert), false);
+        });
+
+        it('should decode JSON-quoted SAN values', () => {
+            const cert = {
+                subjectaltname: 'URI:"https://example.com/x\\u002cy", othername:"UPN:first\\u002clast@example.com", DNS:"a\\"b.example.com"',
+            };
+            assert.equal(allowSAN(['URI:https://example.com/x,y'])(cert), true);
+            assert.equal(allowSAN(['othername:UPN:first,last@example.com'])(cert), true);
+            assert.equal(allowSAN(['a"b.example.com'])(cert), true);
+            assert.equal(allowSAN(['URI:https://example.com/x'])(cert), false);
+        });
+
+        it('should fall back to the raw text when a quoted value is not valid JSON', () => {
+            const cert = { subjectaltname: 'DNS:"broken\\x"' };
+            assert.equal(allowSAN(['DNS:"BROKEN\\x"'])(cert), true);
+            assert.equal(allowSAN(['DNS:broken'])(cert), false);
         });
     });
 
@@ -607,9 +664,14 @@ describe('helpers', () => {
         });
 
         it('should not match non-email SAN type even if value at offset 6 matches', () => {
-            // With startsWith mutation (→ true), "URI:x:me@test.com".slice(6) would be "me@test.com" → false positive
             const cert = { subjectaltname: 'URI:x:me@test.com' };
             assert.equal(allowEmail(['me@test.com'])(cert), false);
+        });
+
+        it('should decode a JSON-quoted SAN email', () => {
+            const cert = { subjectaltname: 'email:"First\\u002cLast@example.com"' };
+            assert.equal(allowEmail(['first,last@example.com'])(cert), true);
+            assert.equal(allowEmail(['first@example.com'])(cert), false);
         });
 
         it('should match subject.emailAddress when SAN has no email entries', () => {

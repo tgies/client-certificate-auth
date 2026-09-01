@@ -690,6 +690,8 @@ app.use(clientCertificateAuth(allowSerial(['01:23:45:67:89:AB:CD:EF'])));
 app.use(clientCertificateAuth(allowSAN(['DNS:api.example.com', 'email:service@example.com'])));
 ```
 
+`allowSAN` values without a type prefix match under any SAN type. Matching is case-insensitive except within URIs, where only the scheme and host are folded; userinfo, path, query, and fragment must match exactly.
+
 ### Field Matching
 
 Match certificates by issuer or subject fields (all specified fields must match):
