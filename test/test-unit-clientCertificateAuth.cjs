@@ -961,6 +961,10 @@ describe('clientCertificateAuth (CommonJS)', () => {
             );
         });
 
+        it('should not throw when an unsupported option is explicitly undefined', () => {
+            assert.doesNotThrow(() => clientCertificateAuth(() => true, { certificateSource: undefined }));
+        });
+
         it('should include load() guidance in error message', () => {
             assert.throws(
                 () => clientCertificateAuth(() => true, { certificateHeader: 'X-SSL-Cert' }),
