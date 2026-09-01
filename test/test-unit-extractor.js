@@ -83,9 +83,81 @@ describe('extractClientCertificate', () => {
       const req = { headers: {}, socket: { authorized: false } };
       assert.doesNotThrow(() =>
         extractClientCertificate(req, {
+          certificateSource: 'aws-alb',
           verifyHeader: 'X-Verify',
           verifyValue: 'SUCCESS',
         })
+      );
+    });
+
+    it('should throw when verifyHeader and verifyValue are set without a header source', () => {
+      const req = { headers: {}, socket: { authorized: false } };
+      assert.throws(
+        () => extractClientCertificate(req, { verifyHeader: 'X-Verify', verifyValue: 'SUCCESS' }),
+        { name: 'Error', message: /verifyHeader requires certificateSource or certificateHeader/ }
+      );
+    });
+
+    it('should throw when verifyHeader or verifyValue is an empty string', () => {
+      const req = { headers: {}, socket: { authorized: false } };
+      assert.throws(
+        () => extractClientCertificate(req, { certificateSource: 'aws-alb', verifyHeader: '', verifyValue: '' }),
+        { name: 'Error', message: /verifyHeader must be a non-empty string/ }
+      );
+      assert.throws(
+        () => extractClientCertificate(req, { certificateSource: 'aws-alb', verifyHeader: 'X-Verify', verifyValue: '' }),
+        { name: 'Error', message: /verifyValue must be a non-empty string/ }
+      );
+    });
+
+    it('should throw when a header-name option is not a string', () => {
+      const req = { headers: {}, socket: { authorized: false } };
+      for (const [option, value] of [['certificateHeader', 42], ['chainHeader', null], ['verifyHeader', ['X-Verify']]]) {
+        assert.throws(
+          () => extractClientCertificate(req, {
+            certificateSource: 'aws-alb',
+            verifyValue: option === 'verifyHeader' ? 'SUCCESS' : undefined,
+            [option]: value,
+          }),
+          { name: 'Error', message: new RegExp(`${option} must be a non-empty string`) },
+          `${option} should reject ${JSON.stringify(value)}`
+        );
+      }
+    });
+
+    it('should throw when certificateHeader or chainHeader is an empty string', () => {
+      const req = { headers: {}, socket: { authorized: false } };
+      assert.throws(
+        () => extractClientCertificate(req, { certificateHeader: '', headerEncoding: 'url-pem' }),
+        { name: 'Error', message: /certificateHeader must be a non-empty string/ }
+      );
+      assert.throws(
+        () => extractClientCertificate(req, { certificateSource: 'aws-alb', chainHeader: '' }),
+        { name: 'Error', message: /chainHeader must be a non-empty string/ }
+      );
+    });
+
+    it('should throw when fallbackToSocket or includeChain is not a boolean', () => {
+      const req = { headers: {}, socket: { authorized: false } };
+      assert.throws(
+        () => extractClientCertificate(req, { certificateSource: 'aws-alb', fallbackToSocket: 'false' }),
+        { name: 'Error', message: /fallbackToSocket must be a boolean/ }
+      );
+      assert.throws(
+        () => extractClientCertificate(req, { includeChain: 1 }),
+        { name: 'Error', message: /includeChain must be a boolean/ }
+      );
+    });
+
+    it('should throw when certificateSource or headerEncoding is an empty string', () => {
+      const req = { headers: {}, socket: { authorized: false } };
+      assert.throws(
+        () => extractClientCertificate(req, { certificateSource: '' }),
+        { name: 'Error', message: /unknown certificateSource ''/ }
+      );
+      assert.throws(
+        () => extractClientCertificate(req, { certificateHeader: 'X-Cert', headerEncoding: '' }),
+        { name: 'Error', message: /unknown headerEncoding ''/ }
       );
     });
 
@@ -187,8 +259,21 @@ describe('extractClientCertificate', () => {
       assert.doesNotThrow(() => validateExtractorOptions());
     });
 
-    it('should throw TypeError when validateExtractorOptions is called with null', () => {
-      assert.throws(() => validateExtractorOptions(null), { name: 'TypeError' });
+    it('should throw TypeError for a container that is not a plain object', () => {
+      for (const value of [null, 'aws-alb', 42, true, [], ['aws-alb'], () => {}, Symbol('x')]) {
+        assert.throws(
+          () => validateExtractorOptions(/** @type {any} */ (value)),
+          { name: 'TypeError', message: /options must be an object/ },
+          `expected ${String(value)} to be rejected`
+        );
+      }
+    });
+
+    it('should reject a non-object container from extractClientCertificate', () => {
+      assert.throws(
+        () => extractClientCertificate({ headers: {} }, /** @type {any} */ ('aws-alb')),
+        { name: 'TypeError', message: /options must be an object/ }
+      );
     });
   });
 
@@ -1270,27 +1355,6 @@ describe('extractClientCertificate', () => {
       assert.strictEqual(result.reason, 'verification_header_mismatch');
     });
 
-    it('should not check verification header for socket-based extraction', () => {
-      const mockCert = getMockPeerCertificate();
-      const req = {
-        headers: {
-          'x-ssl-client-verify': 'FAILED', // Mismatch, but should be ignored for socket
-        },
-        socket: {
-          authorized: true,
-          getPeerCertificate: () => mockCert,
-        },
-      };
-
-      // No certificateSource/certificateHeader, so should use socket only
-      const result = extractClientCertificate(req, {
-        verifyHeader: 'X-SSL-Client-Verify',
-        verifyValue: 'SUCCESS',
-      });
-
-      assert.strictEqual(result.success, true);
-      assert.deepStrictEqual(result.certificate, mockCert);
-    });
   });
 
   describe('AWS ALB safe characters', () => {

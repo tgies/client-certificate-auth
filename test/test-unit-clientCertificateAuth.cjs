@@ -47,6 +47,17 @@ describe('clientCertificateAuth (CommonJS)', () => {
         assert.equal(typeof clientCertificateAuth.load, 'function');
     });
 
+    it('should throw TypeError if options is not an object', () => {
+        assert.throws(() => clientCertificateAuth(() => true, 'aws-alb'), {
+            name: 'TypeError',
+            message: /options must be an object/
+        });
+        assert.throws(() => clientCertificateAuth(() => true, []), {
+            name: 'TypeError',
+            message: /options must be an object/
+        });
+    });
+
     it('should throw TypeError if callback is not a function', () => {
         assert.throws(() => clientCertificateAuth('not a function'), {
             name: 'TypeError',
@@ -1100,6 +1111,33 @@ describe('clientCertificateAuth (CommonJS)', () => {
 
         it('should not throw when an unsupported option is explicitly undefined', () => {
             assert.doesNotThrow(() => clientCertificateAuth(() => true, { certificateSource: undefined }));
+        });
+
+        it('should throw when includeChain is not a boolean', () => {
+            assert.throws(
+                () => clientCertificateAuth(() => true, { includeChain: 'yes' }),
+                {
+                    name: 'Error',
+                    message: /includeChain must be a boolean/
+                }
+            );
+        });
+
+        it('should throw when onAuthenticated or onRejected is not a function', () => {
+            assert.throws(
+                () => clientCertificateAuth(() => true, { onAuthenticated: 'log' }),
+                {
+                    name: 'TypeError',
+                    message: /onAuthenticated must be a function/
+                }
+            );
+            assert.throws(
+                () => clientCertificateAuth(() => true, { onRejected: null }),
+                {
+                    name: 'TypeError',
+                    message: /onRejected must be a function/
+                }
+            );
         });
 
         it('should include load() guidance in error message', () => {

@@ -197,7 +197,7 @@ Returns Express middleware.
 | `options.headerEncoding` | `string` | Encoding format: `'url-pem'`, `'url-pem-aws'`, `'xfcc'`, `'base64-der'`, `'rfc9440'` |
 | `options.fallbackToSocket` | `boolean` | If header extraction fails, try `socket.getPeerCertificate()` (default: `false`) |
 | `options.includeChain` | `boolean` | If `true`, include full certificate chain via `cert.issuerCertificate` (default: `false`) |
-| `options.verifyHeader` | `string` | Header name containing verification status from proxy (e.g., `'X-SSL-Client-Verify'`) |
+| `options.verifyHeader` | `string` | Header name containing verification status from proxy (e.g., `'X-SSL-Client-Verify'`). Requires `certificateSource` or `certificateHeader`, and must be paired with `verifyValue` |
 | `options.verifyValue` | `string` | Expected value indicating successful verification (e.g., `'SUCCESS'`) |
 | `options.onAuthenticated` | `(cert, req) => void` | Called on successful authentication (fire-and-forget) |
 | `options.onRejected` | `(cert, req, reason) => void` | Called on authentication failure (fire-and-forget) |
