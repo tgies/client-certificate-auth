@@ -450,47 +450,56 @@ describe('extractClientCertificate', () => {
     });
 
     describe('Cloudflare preset', () => {
-      it('should extract certificate from Cloudflare header', () => {
-        // Cloudflare uses base64-der encoding, need to convert PEM to DER
-        // For testing, we'll just verify the header name is correct
-        // Skip actual parsing since that requires DER conversion
+      it('should extract certificate from the cf-client-cert-der-base64 header', () => {
         const req = {
           headers: {
-            // Note: Real Cloudflare uses cf-client-cert-der-base64 with base64-der
-            // This test just verifies the extractor tries the right header
-            'cf-client-cert-der-base64': 'invalid',  // Will fail parsing but shows correct header used
+            'cf-client-cert-der-base64': pemToDer(testPem).toString('base64'),
           },
           socket: { authorized: false },
         };
 
-        const result = extractClientCertificate(req, {
-          certificateSource: 'cloudflare',
-          fallbackToSocket: false,
-        });
+        const result = extractClientCertificate(req, { certificateSource: 'cloudflare' });
 
-        // Should fail due to invalid cert, but shows header was checked
+        assert.strictEqual(result.success, true);
+        assert.strictEqual(result.certificate.subject.CN, 'client.example.com');
+      });
+
+      it('should reject a malformed cf-client-cert-der-base64 header', () => {
+        const req = {
+          headers: { 'cf-client-cert-der-base64': 'invalid' },
+          socket: { authorized: false },
+        };
+
+        const result = extractClientCertificate(req, { certificateSource: 'cloudflare' });
+
         assert.strictEqual(result.success, false);
         assert.strictEqual(result.reason, 'header_missing_or_malformed');
       });
     });
 
     describe('Traefik preset', () => {
-      it('should extract certificate from Traefik header', () => {
-        // Traefik also uses base64-der encoding
-        // Skip actual parsing since that requires DER conversion
+      it('should extract certificate from the x-forwarded-tls-client-cert header', () => {
         const req = {
           headers: {
-            'x-forwarded-tls-client-cert': 'invalid',  // Will fail parsing but shows correct header used
+            'x-forwarded-tls-client-cert': pemToDer(testPem).toString('base64'),
           },
           socket: { authorized: false },
         };
 
-        const result = extractClientCertificate(req, {
-          certificateSource: 'traefik',
-          fallbackToSocket: false,
-        });
+        const result = extractClientCertificate(req, { certificateSource: 'traefik' });
 
-        // Should fail due to invalid cert, but shows header was checked
+        assert.strictEqual(result.success, true);
+        assert.strictEqual(result.certificate.subject.CN, 'client.example.com');
+      });
+
+      it('should reject a malformed x-forwarded-tls-client-cert header', () => {
+        const req = {
+          headers: { 'x-forwarded-tls-client-cert': 'invalid' },
+          socket: { authorized: false },
+        };
+
+        const result = extractClientCertificate(req, { certificateSource: 'traefik' });
+
         assert.strictEqual(result.success, false);
         assert.strictEqual(result.reason, 'header_missing_or_malformed');
       });
@@ -1025,7 +1034,7 @@ describe('extractClientCertificate', () => {
         assert.strictEqual(result.certificate.issuerCertificate, undefined);
       });
 
-      it('should preserve issuerCertificate when includeChain is true', () => {
+      it('should leave issuerCertificate unset when includeChain is true and the header carries one certificate', () => {
         const encodedCert = encodeURIComponent(testPem);
         const req = {
           headers: {
@@ -1041,8 +1050,7 @@ describe('extractClientCertificate', () => {
 
         assert.strictEqual(result.success, true);
         assert.ok(result.certificate);
-        // If parser returns issuerCertificate, it should be preserved
-        // (The parser may or may not include it depending on the cert)
+        assert.strictEqual(result.certificate.issuerCertificate, undefined);
       });
 
       it('should preserve chain via issuerCertificate when aws-alb sends multi-PEM chain with includeChain', async () => {
@@ -1285,15 +1293,14 @@ describe('extractClientCertificate', () => {
     });
   });
 
-  describe('case-insensitive header matching', () => {
-    it('should match header names case-insensitively', () => {
+  describe('AWS ALB safe characters', () => {
+    it('should decode a header that leaves +, =, and / unescaped', () => {
       const encodedCert = encodeURIComponent(testPem)
         .replace(/%2B/g, '+')
         .replace(/%3D/g, '=')
         .replace(/%2F/g, '/');
       const req = {
         headers: {
-          // Node.js lowercases headers automatically, so we need to use lowercase
           'x-amzn-mtls-clientcert': encodedCert,
         },
         socket: { authorized: false },
@@ -1304,7 +1311,26 @@ describe('extractClientCertificate', () => {
       });
 
       assert.strictEqual(result.success, true);
-      assert.ok(result.certificate);
+      assert.strictEqual(result.certificate.subject.CN, 'client.example.com');
+    });
+  });
+
+  describe('case-insensitive header matching', () => {
+    it('should match a mixed-case certificateHeader option against the lowercased header key', () => {
+      const req = {
+        headers: {
+          'x-amzn-mtls-clientcert': encodeURIComponent(testPem),
+        },
+        socket: { authorized: false },
+      };
+
+      const result = extractClientCertificate(req, {
+        certificateHeader: 'X-Amzn-Mtls-ClientCert',
+        headerEncoding: 'url-pem-aws',
+      });
+
+      assert.strictEqual(result.success, true);
+      assert.strictEqual(result.certificate.subject.CN, 'client.example.com');
     });
   });
 });

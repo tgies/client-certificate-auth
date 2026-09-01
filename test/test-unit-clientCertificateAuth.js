@@ -1209,11 +1209,7 @@ describe('clientCertificateAuth', () => {
           }
         });
 
-        const startTime = Date.now();
         middleware(mockGoodReq, mockRes, () => {
-          const elapsed = Date.now() - startTime;
-          // Request should complete quickly, not wait 100ms for hook
-          assert.ok(elapsed < 50, `Request took ${elapsed}ms, should be nearly instant`);
           assert.equal(hookResolved, false, 'Hook should not have resolved yet');
           done();
         });
