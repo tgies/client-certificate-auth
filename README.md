@@ -339,16 +339,26 @@ The certificate is attached before the authorization callback runs, so it's avai
 
 ### Certificate Chain Access
 
-For enterprise PKI scenarios, you may need to inspect intermediate CAs or the root CA:
+For enterprise PKI scenarios, you may need to inspect intermediate CAs or the root CA. Which of the two below applies depends on how the certificate reached you; they are alternatives, not a pair to use together.
+
+On a direct TLS connection Node validated the chain during the handshake, so issuer fields distinguish between the CAs the server already trusts:
 
 ```javascript
 app.use(clientCertificateAuth((cert) => {
-  // Check issuer's organization
-  if (cert.issuerCertificate) {
-    return cert.issuerCertificate.subject.O === 'Trusted Root CA';
-  }
-  return false;
+  return cert.issuerCertificate?.subject.O === 'Trusted Root CA';
 }, { includeChain: true }));
+```
+
+Behind a passthrough proxy nothing has validated anything, so verify the chain rather than read fields from it (`aws-alb` forwards the chain, `azure-app-service` only the leaf):
+
+```javascript
+import { readFileSync } from 'node:fs';
+import { allowCA } from 'client-certificate-auth/helpers';
+
+app.use(clientCertificateAuth(allowCA(readFileSync('ca.pem')), {
+  certificateSource: 'aws-alb',
+  includeChain: true
+}));
 ```
 
 When `includeChain: true`, the certificate object includes `issuerCertificate` linking to the issuer's certificate (and so on up the chain). This works consistently for both socket-based and header-based extraction, except on Node.js 26.8.0 and later, where a Node.js regression ([nodejs/node#65579](https://github.com/nodejs/node/issues/65579)) leaves `issuerCertificate` unset on the socket path; header-based extraction is unaffected. See [Troubleshooting](docs/guide/troubleshooting.md#certificate-chain-missing-on-nodejs-2680-and-later).
@@ -463,7 +473,7 @@ app.use(clientCertificateAuth(checkAuth, {
 | `envoy` | `X-Forwarded-Client-Cert` | XFCC structured format |
 | `traefik` | `X-Forwarded-Tls-Client-Cert` | Base64-encoded DER \* |
 
-> ⚠️ **Passthrough presets do not validate the certificate.** ALB mTLS passthrough mode (`aws-alb`) and Azure App Service (`azure-app-service`) forward whatever certificate the client presented during the handshake, without checking it against a trust store. The middleware parses the certificate, but your callback is responsible for trust verification: matching the issuer against an expected CA, checking the validity window, and checking revocation if applicable. A callback that only checks `cert.subject.CN` (including the `allowCN` helper) will accept any well-formed certificate a client presents. To rely on proxy-side validation instead, use ALB verify mode (`aws-alb-verify`), which validates against a configured trust store, or pin the certificate with `allowFingerprints`.
+> ⚠️ **Passthrough presets do not validate the certificate.** ALB mTLS passthrough mode (`aws-alb`) and Azure App Service (`azure-app-service`) forward whatever certificate the client presented during the handshake, without checking it against a trust store. The middleware parses the certificate, but nothing has established that a CA you trust issued it. Subject and issuer fields are attacker-controlled here: a self-signed certificate can carry any subject, issuer name, or chain, so `allowCN`, `allowIssuer`, `allowSubject`, and checks on `issuerCertificate` fields authorize anyone who can build a certificate. Trust has to come from proxy-side validation (`aws-alb-verify`, or nginx, Envoy, and Traefik configured to verify the client CA), from signature verification against a CA you control with `allowCA` (add `includeChain: true` where the proxy forwards the chain; Azure App Service forwards only the leaf, so give `allowCA` the issuing CA certificate), or from pinning specific certificates with `allowFingerprints`. `allowCA` checks signatures, CA and path-length constraints, usage extensions, and validity windows; it does not check revocation, and it rejects any certificate on the path carrying name constraints or a critical extension it does not process, certificate policies among them. Where the proxy can validate the client certificate itself, prefer that.
 
 > \* **Traefik note:** The `traefik` preset targets Traefik v3's `PassTLSClientCert` middleware with `pem: true`. Despite Traefik's docs describing this as "PEM format", the wire format is the base64 body without PEM headers, equivalent to base64-encoded DER. This applies to Traefik v2.9.4 and later and all of v3; Traefik 2.8 through 2.9.1 URL-escaped the value, which this preset does not decode.
 

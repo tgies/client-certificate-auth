@@ -20,9 +20,13 @@ if (!result.success) {
 
 The helper returns the same `{ success, certificate, reason }` result as `extractClientCertificate()` from `client-certificate-auth/extractor`. Validation helpers from `client-certificate-auth/helpers` work without modification.
 
+A successful result means a certificate parsed, not that it is trusted. Behind passthrough presets (`aws-alb`, `azure-app-service`) the certificate is whatever the client sent; verify it with `allowCA` (Azure App Service forwards only the leaf, so give `allowCA` the issuing CA certificate), as in the Next.js recipe below, or pin it with `allowFingerprints`. See the [passthrough warnings](./reverse-proxy.md#preset-details).
+
 ## Header-Only
 
 Web `Request` does not expose the TLS socket, so the Fetch adapter is header-only. Configure a header source via `certificateSource` or `certificateHeader` + `headerEncoding`; `fallbackToSocket` has no effect.
+
+The header is the only evidence of the client's identity, so the origin must be reachable only through the proxy that sets it (behind ALB, a security group that admits only the load balancer). A client that can reach the origin directly can supply the header itself. See [Security Considerations](./reverse-proxy.md#security-considerations).
 
 ::: warning Runtime requirement
 The adapter imports the core extractor, which uses `node:crypto` (`X509Certificate`). Runtimes must provide Node-compatible crypto: Node, Bun, Deno, and Cloudflare Workers with `nodejs_compat` all work. Pure edge runtimes without Node compatibility will fail at import time.
@@ -53,13 +57,21 @@ export default app;
 
 ```javascript
 // app/api/secure/route.js
+import { readFileSync } from 'node:fs';
 import { extractClientCertificateFromRequest } from 'client-certificate-auth/fetch';
+import { allowCA } from 'client-certificate-auth/helpers';
+
+// ALB passthrough forwards the presented chain without validating it.
+const trustedCA = allowCA(readFileSync('ca.pem'));
 
 export async function GET(request) {
   const result = extractClientCertificateFromRequest(request, {
     certificateSource: 'aws-alb',
+    includeChain: true,
   });
-  if (!result.success) return new Response('Unauthorized', { status: 401 });
+  if (!result.success || trustedCA(result.certificate) !== true) {
+    return new Response('Unauthorized', { status: 401 });
+  }
   return Response.json({ user: result.certificate.subject.CN });
 }
 ```
@@ -89,8 +101,9 @@ import { defineMiddleware } from 'astro:middleware';
 import { extractClientCertificateFromRequest } from 'client-certificate-auth/fetch';
 
 export const onRequest = defineMiddleware(async (context, next) => {
+  // ALB verify mode: ALB validated the certificate against its trust store.
   const result = extractClientCertificateFromRequest(context.request, {
-    certificateSource: 'aws-alb',
+    certificateSource: 'aws-alb-verify',
   });
   if (!result.success) return new Response('Unauthorized', { status: 401 });
   context.locals.user = { cn: result.certificate.subject.CN };
@@ -121,8 +134,9 @@ import type { LoaderFunctionArgs } from 'react-router';
 import { extractClientCertificateFromRequest } from 'client-certificate-auth/fetch';
 
 export async function loader({ request }: LoaderFunctionArgs) {
+  // ALB verify mode: ALB validated the certificate against its trust store.
   const result = extractClientCertificateFromRequest(request, {
-    certificateSource: 'aws-alb',
+    certificateSource: 'aws-alb-verify',
   });
   if (!result.success) throw new Response('Unauthorized', { status: 401 });
   return { user: { cn: result.certificate.subject.CN } };
