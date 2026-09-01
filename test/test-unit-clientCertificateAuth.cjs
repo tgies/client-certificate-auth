@@ -330,6 +330,123 @@ describe('clientCertificateAuth (CommonJS)', () => {
                     done();
                 });
             });
+
+            it('should pass a frozen sync error to next() with status 401', done => {
+                const locked = Object.freeze(new Error('locked'));
+                const middleware = clientCertificateAuth(() => {
+                    throw locked;
+                });
+                middleware(mockGoodReq, mockRes, (err) => {
+                    assert.ok(err instanceof Error);
+                    assert.equal(err.message, 'locked');
+                    assert.equal(err.status, 401);
+                    assert.equal(err.cause, locked);
+                    done();
+                });
+            });
+
+            it('should pass a frozen async rejection to next() with status 401', done => {
+                const locked = Object.freeze(new Error('locked'));
+                const middleware = clientCertificateAuth(async () => {
+                    throw locked;
+                });
+                middleware(mockGoodReq, mockRes, (err) => {
+                    assert.ok(err instanceof Error);
+                    assert.equal(err.message, 'locked');
+                    assert.equal(err.status, 401);
+                    assert.equal(err.cause, locked);
+                    done();
+                });
+            });
+
+            it('should pass a frozen error with a pre-set status through unchanged', done => {
+                const forbidden = new Error('Custom forbidden');
+                forbidden.status = 403;
+                Object.freeze(forbidden);
+                const middleware = clientCertificateAuth(() => {
+                    throw forbidden;
+                });
+                middleware(mockGoodReq, mockRes, (err) => {
+                    assert.equal(err, forbidden);
+                    assert.equal(err.status, 403);
+                    done();
+                });
+            });
+
+            it('should wrap a frozen non-Error object with an empty message', done => {
+                const thrown = Object.freeze({ code: 'E_LOCKED' });
+                const middleware = clientCertificateAuth(() => {
+                    throw thrown;
+                });
+                middleware(mockGoodReq, mockRes, (err) => {
+                    assert.ok(err instanceof Error);
+                    assert.equal(err.message, '');
+                    assert.equal(err.status, 401);
+                    assert.equal(err.cause, thrown);
+                    done();
+                });
+            });
+
+            it('should wrap a sync error whose accessors throw', done => {
+                const trap = { get status() { throw new Error('status trap'); }, get message() { throw new Error('message trap'); } };
+                const middleware = clientCertificateAuth(() => {
+                    throw trap;
+                });
+                middleware(mockGoodReq, mockRes, (err) => {
+                    assert.ok(err instanceof Error);
+                    assert.equal(err.message, '');
+                    assert.equal(err.status, 401);
+                    assert.equal(err.cause, trap);
+                    done();
+                });
+            });
+
+            it('should wrap a sync error whose status assignment is silently dropped', done => {
+                const dropped = new Proxy(new Error('dropped'), { set: () => true });
+                const middleware = clientCertificateAuth(() => {
+                    throw dropped;
+                });
+                middleware(mockGoodReq, mockRes, (err) => {
+                    assert.ok(err instanceof Error);
+                    assert.equal(err.message, 'dropped');
+                    assert.equal(err.status, 401);
+                    assert.equal(err.cause, dropped);
+                    done();
+                });
+            });
+
+            it('should wrap an async rejection whose accessors throw', done => {
+                const trap = { get status() { throw new Error('status trap'); }, get message() { throw new Error('message trap'); } };
+                const middleware = clientCertificateAuth(async () => {
+                    throw trap;
+                });
+                middleware(mockGoodReq, mockRes, (err) => {
+                    assert.ok(err instanceof Error);
+                    assert.equal(err.message, '');
+                    assert.equal(err.status, 401);
+                    assert.equal(err.cause, trap);
+                    done();
+                });
+            });
+
+            it('should report callback_threw when the thrown message is unreadable or not a string', async () => {
+                for (const thrown of [{ get message() { throw new Error('message trap'); } }, { message: 42 }]) {
+                    let reason = null;
+                    const middleware = clientCertificateAuth(() => {
+                        throw thrown;
+                    }, {
+                        onRejected: (cert, req, why) => { reason = why; }
+                    });
+                    await new Promise(resolve => {
+                        middleware(mockGoodReq, mockRes, (err) => {
+                            assert.equal(err, thrown);
+                            assert.equal(err.status, 401);
+                            setImmediate(resolve);
+                        });
+                    });
+                    assert.equal(reason, 'callback_threw');
+                }
+            });
         });
 
         describe('when the client certificate does not validate', () => {
