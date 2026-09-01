@@ -258,7 +258,7 @@ function koaClientCert(checkAuth, options = {}) {
     ctx.state.clientCertificate = result.certificate;
 
     const allowed = await checkAuth(result.certificate, ctx.req);
-    if (!allowed) {
+    if (allowed !== true) {
       ctx.throw(401, 'Certificate not authorized');
     }
 
@@ -300,6 +300,14 @@ app.post('/api/login', (req, res) => {
   res.json({ token, user });
 });
 ```
+
+### `extractClientCertificateFromLambdaEvent(event)`
+
+Exported from `client-certificate-auth/lambda`. Reads the certificate API Gateway attaches to a Lambda event (`requestContext.authentication.clientCert` for HTTP APIs, `requestContext.identity.clientCert` for REST APIs) and returns the same `{ success, certificate, reason }` result, with `lambda_event_missing_clientcert` and `lambda_event_clientcert_malformed` as the rejection reasons. See the [Lambda guide](https://tgies.github.io/client-certificate-auth/guide/lambda).
+
+### `extractClientCertificateFromRequest(request, options?)`
+
+Exported from `client-certificate-auth/fetch`. Header-only extraction for Web standard `Request` objects (Hono, Next.js route handlers, SvelteKit, Astro, Remix, Cloudflare Workers, Bun, Deno). Takes the same header options as `extractClientCertificate` and returns the same result. See the [Fetch guide](https://tgies.github.io/client-certificate-auth/guide/fetch).
 
 ### Ecosystem
 
@@ -361,7 +369,7 @@ app.use(clientCertificateAuth(allowCA(readFileSync('ca.pem')), {
 }));
 ```
 
-When `includeChain: true`, the certificate object includes `issuerCertificate` linking to the issuer's certificate (and so on up the chain). This works consistently for both socket-based and header-based extraction, except on Node.js 26.8.0 and later, where a Node.js regression ([nodejs/node#65579](https://github.com/nodejs/node/issues/65579)) leaves `issuerCertificate` unset on the socket path; header-based extraction is unaffected. See [Troubleshooting](docs/guide/troubleshooting.md#certificate-chain-missing-on-nodejs-2680-and-later).
+When `includeChain: true`, the certificate object includes `issuerCertificate` linking to the issuer's certificate (and so on up the chain) for both socket-based and header-based extraction. The chains end differently: a socket-based chain ends in a root whose `issuerCertificate` is the root itself (Node's behavior), while a header-based chain ends at the last forwarded certificate, whose `issuerCertificate` is `undefined`. Walk chains with a depth limit or a visited check rather than `while (cert.issuerCertificate)`. On Node.js 26.8.0 and later, a Node.js regression ([nodejs/node#65579](https://github.com/nodejs/node/issues/65579)) leaves `issuerCertificate` unset on the socket path, so no socket-based chain is walkable there; header-based extraction is unaffected. See [Troubleshooting](docs/guide/troubleshooting.md#certificate-chain-missing-on-nodejs-2680-and-later).
 
 For header-based extraction the first certificate in the header is the leaf. If it is empty or unparseable the header is rejected with `header_missing_or_malformed` rather than promoting the next certificate into the leaf position. A header value carries at most 10 certificates, leaf and chain header combined. See [Reverse Proxy Setup](https://tgies.github.io/client-certificate-auth/guide/reverse-proxy#chains-in-a-single-header) for the per-encoding details.
 
@@ -550,17 +558,17 @@ app.use(clientCertificateAuth(checkAuth, {
 
 Example nginx configuration:
 ```nginx
-# Strip any existing headers from clients
-proxy_set_header X-SSL-Client-Cert "";
-proxy_set_header X-SSL-Client-Verify "";
-
-# Always send verification status
-proxy_set_header X-SSL-Client-Verify $ssl_client_verify;
-
-# Only send cert if verified
-if ($ssl_client_verify = SUCCESS) {
-    proxy_set_header X-SSL-Client-Cert $ssl_client_escaped_cert;
+# http context: expose the certificate only when nginx verified it.
+# proxy_set_header is not allowed in a server-level if block, so gate it with a map.
+map $ssl_client_verify $ssl_client_cert_if_verified {
+    SUCCESS $ssl_client_escaped_cert;
+    default "";
 }
+
+# server or location context. proxy_set_header replaces any value the client
+# sent, and an empty value removes the header entirely.
+proxy_set_header X-SSL-Client-Verify $ssl_client_verify;
+proxy_set_header X-SSL-Client-Cert $ssl_client_cert_if_verified;
 ```
 
 ## WebSocket Support
@@ -674,7 +682,7 @@ import {
 import { readFileSync } from 'node:fs';
 ```
 
-> **Note:** In CommonJS, the `/helpers`, `/parsers`, and `/extractor` subpath exports provide a `load()` function for async access. See the [CommonJS](#commonjs) section for details.
+> **Note:** In CommonJS, the `/helpers`, `/parsers`, `/extractor`, `/lambda`, and `/fetch` subpath exports provide a `load()` function for async access. See the [CommonJS](#commonjs) section for details.
 
 ### Basic Helpers
 
@@ -844,7 +852,7 @@ The `load()` function dynamically imports the ESM module and caches it. Subseque
 
 ### Subpath Exports in CJS
 
-The `/helpers`, `/parsers`, and `/extractor` subpath exports each provide a `load()` function for async access in CommonJS. The individual functions are not synchronously available via `require()`.
+The `/helpers`, `/parsers`, `/extractor`, `/lambda`, and `/fetch` subpath exports each provide a `load()` function for async access in CommonJS. The individual functions are not synchronously available via `require()`.
 
 ```javascript
 // Helpers
@@ -877,7 +885,7 @@ The E2E tests spin up real reverse proxies, generate fresh certificates, and ver
 
 ## Security Notes
 
-- Set `rejectUnauthorized: false` on your HTTPS server to let this middleware provide helpful error messages, rather than dropping connections silently
+- Set `rejectUnauthorized: false` on your HTTPS server to let this middleware provide helpful error messages, rather than dropping connections silently. Routes that do not run the middleware then have no TLS-layer client-certificate enforcement, so apply it to every route that needs authentication
 - **When using header-based auth**, ensure your proxy strips certificate headers from external requests
 - Repeated certificate or verification header lines are rejected (Node joins repeats with `, `, so the first value would otherwise win); chain headers are RFC 9440 lists and may repeat
 - Use `verifyHeader`/`verifyValue` as defense-in-depth when using header-based authentication
@@ -987,7 +995,7 @@ const clientCertificateAuth = await require('client-certificate-auth').load();
 
 The sync CJS wrapper does not support reverse proxy options (`certificateSource`, `certificateHeader`, etc.). Passing these options will throw a descriptive error. Use `load()` to access the full ESM module from CJS code. See the [CommonJS](#commonjs) section for details.
 
-The `/helpers`, `/parsers`, and `/extractor` subpath exports each provide a `load()` function in CJS. See [Subpath Exports in CJS](#subpath-exports-in-cjs) for details.
+The `/helpers`, `/parsers`, `/extractor`, `/lambda`, and `/fetch` subpath exports each provide a `load()` function in CJS. See [Subpath Exports in CJS](#subpath-exports-in-cjs) for details.
 
 ## Commercial Support
 
