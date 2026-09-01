@@ -22,6 +22,12 @@ export interface RequestLike {
  *
  * @param request - A Web Request or any object with iterable headers. Missing or
  *   non-iterable headers, and entries that are not `[name, value]` tuples, are ignored.
+ *   A repeated certificate header is rejected where the iterable exposes it. A Web
+ *   `Headers` joins repeated lines into one value before this sees them: `url-pem`,
+ *   `url-pem-aws`, `rfc9440`, and `base64-der` under every preset but `traefik` reject
+ *   that joined form. `xfcc`, and `base64-der` read through `traefik` or a
+ *   hand-configured `certificateHeader`, use the comma grammatically and cannot tell it
+ *   apart, so there the origin must be reachable only through the proxy.
  * @param options - Same options as `extractClientCertificate`. Header options only.
  */
 export declare function extractClientCertificateFromRequest(

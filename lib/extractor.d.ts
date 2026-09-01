@@ -35,6 +35,8 @@
  *   non-object `headers` field, one whose accessor throws, and one holding a
  *   property whose accessor throws are all treated as having no headers.
  * @param {Record<string, string | string[] | undefined>} [req.headers] - HTTP headers object
+ * @param {string[]} [req.rawHeaders] - Node's raw header list; a certificate or
+ *   verification header that appears more than once is rejected
  * @param {Object} [req.socket] - TLS socket with getPeerCertificate() method
  * @param {boolean} [req.socket.authorized] - Whether socket was authorized
  * @param {(detailed: boolean) => import('tls').PeerCertificate} [req.socket.getPeerCertificate] - Get peer certificate
@@ -59,6 +61,7 @@
  */
 export function extractClientCertificate(req: {
     headers?: Record<string, string | string[] | undefined>;
+    rawHeaders?: string[];
     socket?: {
         authorized?: boolean;
         getPeerCertificate?: (detailed: boolean) => import("tls").PeerCertificate;

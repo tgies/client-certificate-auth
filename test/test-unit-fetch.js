@@ -357,6 +357,119 @@ describe('extractClientCertificateFromRequest', () => {
     });
   });
 
+  describe('repeated certificate headers', () => {
+    let attackerPem;
+
+    beforeAll(async () => {
+      const attacker = await generateClientCertificate('attacker.example.com');
+      attackerPem = attacker.cert;
+    });
+
+    it('should reject duplicates a Web Headers joined into one value', () => {
+      const headers = new Headers();
+      headers.append('X-Amzn-Mtls-Clientcert', encodeURIComponent(attackerPem));
+      headers.append('X-Amzn-Mtls-Clientcert', encodeURIComponent(testPem));
+      const request = new Request('https://example.com/api', { headers });
+
+      const result = extractClientCertificateFromRequest(request, {
+        certificateSource: 'aws-alb',
+      });
+
+      assert.strictEqual(result.success, false);
+      assert.strictEqual(result.reason, 'header_missing_or_malformed');
+    });
+
+    it('should reject duplicates an iterable exposes as separate entries', () => {
+      const headers = [
+        ['x-arr-clientcert', pemToDer(attackerPem).toString('base64')],
+        ['x-arr-clientcert', testDer.toString('base64')],
+      ];
+
+      const result = extractClientCertificateFromRequest({ headers }, {
+        certificateSource: 'azure-app-service',
+      });
+
+      assert.strictEqual(result.success, false);
+      assert.strictEqual(result.reason, 'header_missing_or_malformed');
+    });
+
+    it('should reject a duplicated verification header', () => {
+      const headers = [
+        ['client-cert', encodeAsRfc9440(testDer)],
+        ['x-ssl-verify', 'SUCCESS'],
+        ['x-ssl-verify', 'SUCCESS'],
+      ];
+
+      const result = extractClientCertificateFromRequest({ headers }, {
+        certificateSource: 'cloudflare-rfc9440',
+        verifyHeader: 'X-SSL-Verify',
+        verifyValue: 'SUCCESS',
+      });
+
+      assert.strictEqual(result.success, false);
+      assert.strictEqual(result.reason, 'verification_header_mismatch');
+    });
+
+    it('should reject a base64-der duplicate a Web Headers joined into one value', () => {
+      const headers = new Headers();
+      headers.append('X-ARR-ClientCert', pemToDer(attackerPem).toString('base64'));
+      headers.append('X-ARR-ClientCert', testDer.toString('base64'));
+      const request = new Request('https://example.com/api', { headers });
+
+      const result = extractClientCertificateFromRequest(request, {
+        certificateSource: 'azure-app-service',
+      });
+
+      assert.strictEqual(result.success, false);
+      assert.strictEqual(result.reason, 'header_missing_or_malformed');
+    });
+
+    it('should reject a Cloudflare base64-der duplicate joined into one value', () => {
+      const headers = new Headers();
+      headers.append('Cf-Client-Cert-Der-Base64', pemToDer(attackerPem).toString('base64'));
+      headers.append('Cf-Client-Cert-Der-Base64', testDer.toString('base64'));
+      const request = new Request('https://example.com/api', { headers });
+
+      const result = extractClientCertificateFromRequest(request, {
+        certificateSource: 'cloudflare',
+      });
+
+      assert.strictEqual(result.success, false);
+      assert.strictEqual(result.reason, 'header_missing_or_malformed');
+    });
+
+    it('should still read a Traefik chain, which the leaf header carries', () => {
+      const headers = new Headers();
+      headers.set(
+        'X-Forwarded-Tls-Client-Cert',
+        [testDer.toString('base64'), pemToDer(attackerPem).toString('base64')].join(',')
+      );
+      const request = new Request('https://example.com/api', { headers });
+
+      const result = extractClientCertificateFromRequest(request, {
+        certificateSource: 'traefik',
+        includeChain: true,
+      });
+
+      assert.strictEqual(result.success, true);
+      assert.strictEqual(result.certificate.subject.CN, 'fetch.example.com');
+      assert.strictEqual(result.certificate.issuerCertificate.subject.CN, 'attacker.example.com');
+    });
+
+    it('should still accept a header that appears once', () => {
+      const headers = new Headers();
+      headers.append('X-Amzn-Mtls-Clientcert', encodeURIComponent(testPem));
+      const request = new Request('https://example.com/api', { headers });
+
+      const result = extractClientCertificateFromRequest(request, {
+        certificateSource: 'aws-alb',
+      });
+
+      assert.strictEqual(result.success, true);
+      assert.strictEqual(result.certificate.subject.CN, 'fetch.example.com');
+    });
+  });
+
   describe('header-only behavior', () => {
     it('should never access a socket field even if one is present on the request', () => {
       const headers = new Headers();

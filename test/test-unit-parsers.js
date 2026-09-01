@@ -204,6 +204,14 @@ describe('parsers module', () => {
             assert.ok(cert);
             assert.equal(cert.subject.CN, 'Test Parser Client');
         });
+
+        it('should reject a value joined from repeated header lines', () => {
+            // A URL-encoded PEM has no literal comma, so one marks the ", " a
+            // Web Headers or Node inserts when it joins repeated lines.
+            const encoded = encodeAsNginx(testPem);
+
+            assert.equal(parseUrlPem(`${encoded}, ${encoded}`), null);
+        });
     });
 
     describe('parseUrlPemAws (AWS ALB format)', () => {
@@ -277,6 +285,14 @@ describe('parsers module', () => {
 
             assert.ok(cert);
             assert.equal(cert.subject.CN, 'Test Parser Client');
+        });
+
+        it('should reject a value joined from repeated header lines', () => {
+            // ALB percent-encodes the comma, so a literal one marks the ", " a
+            // Web Headers or Node inserts when it joins repeated lines.
+            const encoded = encodeAsAwsAlb(testPem);
+
+            assert.equal(parseUrlPemAws(`${encoded}, ${encoded}`), null);
         });
     });
 
@@ -673,6 +689,25 @@ describe('parsers module', () => {
             assert.equal(parseBase64Der(`${invalidCert},${invalidCert}`), null);
         });
 
+        it('should reject a certificate carrying trailing bytes', () => {
+            const withTrailing = Buffer.concat([testDer, Buffer.alloc(3)]).toString('base64');
+            assert.equal(parseBase64Der(withTrailing), null);
+        });
+
+        it('should reject a value joined from repeated header lines when the leaf header carries no chain', () => {
+            const cert1 = encodeAsCloudflare(testDer);
+            const cert2 = encodeAsCloudflare(testDer);
+
+            assert.equal(parseBase64Der(`${cert1},${cert2}`, { chainInLeafHeader: false }), null);
+            assert.ok(parseBase64Der(`${cert1},${cert2}`, { chainInLeafHeader: true }));
+        });
+
+        it('should accept a single certificate when the leaf header carries no chain', () => {
+            const cert = parseBase64Der(encodeAsCloudflare(testDer), { chainInLeafHeader: false });
+            assert.ok(cert);
+            assert.equal(cert.subject.CN, 'Test Parser Client');
+        });
+
         it('should link cert chain via issuerCertificate for multiple valid certs', () => {
             // Create two different encodings of the same cert (simulating a chain)
             const cert1 = encodeAsCloudflare(testDer);
@@ -750,13 +785,38 @@ describe('parsers module', () => {
             assert.equal(cert.subject.CN, 'Test Parser Client');
         });
 
-        it('should handle input without colon delimiters', () => {
-            // Some implementations might strip the colons
-            const encoded = testDer.toString('base64');
-            const cert = parseRfc9440(encoded);
+        it('should reject input without colon delimiters', () => {
+            assert.equal(parseRfc9440(testDer.toString('base64')), null);
+            assert.equal(parseRfc9440(':' + testDer.toString('base64')), null);
+            assert.equal(parseRfc9440(testDer.toString('base64') + ':'), null);
+        });
 
-            assert.ok(cert);
-            assert.equal(cert.subject.CN, 'Test Parser Client');
+        it('should reject anything outside the byte sequence', () => {
+            const encoded = encodeAsRfc9440(testDer);
+            assert.equal(parseRfc9440(`${encoded};p=x`), null);
+            assert.equal(parseRfc9440(` ${encoded}`), null);
+            assert.equal(parseRfc9440(`${encoded}, ${encoded}`), null);
+            assert.equal(parseRfc9440(':not base64!:'), null);
+        });
+
+        it('should reject base64 carrying trailing data', () => {
+            const base64 = testDer.toString('base64');
+            // Buffer.from skips what it cannot decode, so anything after the
+            // certificate would otherwise parse as the certificate alone.
+            assert.equal(parseRfc9440(`:${base64}junk:`), null);
+            assert.equal(parseRfc9440(`:${base64}==junk:`), null);
+            assert.equal(parseRfc9440(`:${base64}${base64}:`), null);
+            assert.equal(parseRfc9440(`:${base64}A:`), null);
+            // Not a whole number of quartets, so it cannot round trip.
+            assert.equal(parseRfc9440(`:${base64.slice(0, -1)}:`), null);
+            assert.equal(parseRfc9440(':QUJDRQ:'), null);
+            // Non-zero bits under the padding: decodes, but not to this text.
+            assert.equal(parseRfc9440(':QR==:'), null);
+            // Trailing bytes that survive the round trip because the appended
+            // text is itself valid base64 of a whole number of bytes.
+            const padded = Buffer.concat([testDer, Buffer.alloc(3)]).toString('base64');
+            assert.equal(parseRfc9440(`:${padded}:`), null);
+            assert.equal(parseRfc9440('::'), null);
         });
 
         it('should return null for empty input', () => {

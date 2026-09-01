@@ -45,6 +45,12 @@ export interface PresetConfig {
     chainHeader?: string;
     /** Encoding format used by this proxy */
     encoding: HeaderEncoding;
+    /**
+     * Set when this proxy forwards the whole chain in the leaf header rather
+     * than the leaf alone. Where it is unset, a comma in the value is read as
+     * a joined repeat and rejected.
+     */
+    chainInLeafHeader?: boolean;
 }
 
 /**
@@ -87,7 +93,10 @@ export declare function parseXfcc(headerValue: string): ChainedPeerCertificate |
  * Also handles Traefik's comma-separated cert chains.
  * @see https://developers.cloudflare.com/api-shield/security/mtls/configure/
  */
-export declare function parseBase64Der(headerValue: string): ChainedPeerCertificate | null;
+export declare function parseBase64Der(
+    headerValue: string,
+    options?: { chainInLeafHeader?: boolean }
+): ChainedPeerCertificate | null;
 
 /**
  * Parse RFC 9440 format certificate (used by Google Cloud Load Balancer).
@@ -110,7 +119,8 @@ export declare function derToCertificate(der: Buffer): PeerCertificate;
  */
 export declare function parseHeaderValue(
     headerValue: string,
-    encoding: HeaderEncoding
+    encoding: HeaderEncoding,
+    options?: { chainInLeafHeader?: boolean }
 ): ChainedPeerCertificate | null;
 
 /**
