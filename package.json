@@ -102,6 +102,7 @@
     "@commitlint/cli": "^21.0.0",
     "@commitlint/config-conventional": "^21.0.0",
     "@eslint/js": "^10.0.1",
+    "@peculiar/x509": "^1.14.3",
     "@stryker-mutator/core": "^9.6.0",
     "@stryker-mutator/jest-runner": "^9.6.1",
     "@types/express": "^5.0.6",

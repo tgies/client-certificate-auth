@@ -657,7 +657,11 @@ Pre-built validation callbacks for common authorization patterns, available as a
 
 ```javascript
 import clientCertificateAuth from 'client-certificate-auth';
-import { allowCN, allowFingerprints, allowIssuer, allOf, anyOf } from 'client-certificate-auth/helpers';
+import {
+  allowCA, allowCN, allowEmail, allowFingerprints, allowIssuer, allowOrganization,
+  allowOU, allowSAN, allowSerial, allowSubject, allOf, anyOf
+} from 'client-certificate-auth/helpers';
+import { readFileSync } from 'node:fs';
 ```
 
 > **Note:** In CommonJS, the `/helpers`, `/parsers`, and `/extractor` subpath exports provide a `load()` function for async access. See the [CommonJS](#commonjs) section for details.
@@ -688,6 +692,13 @@ app.use(clientCertificateAuth(allowSerial(['01:23:45:67:89:AB:CD:EF'])));
 
 // Allowlist by Subject Alternative Name
 app.use(clientCertificateAuth(allowSAN(['DNS:api.example.com', 'email:service@example.com'])));
+
+// Verify the certificate chains to a CA you control (needed behind passthrough proxies)
+// The header carries only the public certificate: the app must be reachable only through the proxy.
+app.use(clientCertificateAuth(allowCA(readFileSync('ca.pem')), {
+  certificateSource: 'aws-alb',
+  includeChain: true
+}));
 ```
 
 `allowSAN` values without a type prefix match under any SAN type. Matching is case-insensitive except within URIs, where only the scheme and host are folded; userinfo, path, query, and fragment must match exactly.
@@ -733,6 +744,7 @@ app.use(clientCertificateAuth(anyOf(
 | `allowSerial(serials)` | Match by serial number |
 | `allowSAN(values)` | Match by Subject Alternative Name |
 | `allowEmail(emails)` | Match by email (SAN or subject) |
+| `allowCA(cas, options?)` | Verify the chain against your own CA certificates |
 | `allOf(...callbacks)` | AND combinator |
 | `anyOf(...callbacks)` | OR combinator |
 

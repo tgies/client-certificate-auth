@@ -9,9 +9,52 @@ import {
     allowSerial,
     allowSAN,
     allowEmail,
+    allowCA,
     allOf,
     anyOf,
 } from '../lib/helpers.js';
+import { pemToCertificate } from '../lib/parsers.js';
+import { generateMtlsCertificates, generateIntermediateChain, generateClientCertificate, pemToDer } from './test-helpers.js';
+import selfsigned from 'selfsigned';
+import * as x509 from '@peculiar/x509';
+import { webcrypto } from 'node:crypto';
+
+const RSA_SHA256 = { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' };
+
+/**
+ * Issue a certificate with arbitrary extensions, signed by a selfsigned-style
+ * CA ({ cert, key } PEM pair), or self-signed when `ca` is null. Returns the
+ * PEM certificate and its PKCS#8 private key.
+ */
+async function issueWithExtensions(ca, commonName, extensions) {
+    const keys = await webcrypto.subtle.generateKey({ ...RSA_SHA256, modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]) }, true, ['sign', 'verify']);
+    const validity = { notBefore: new Date(Date.now() - 60_000), notAfter: new Date(Date.now() + 86_400_000) };
+    let cert;
+    if (ca) {
+        const pkcs8 = Buffer.from(ca.key.replace(/-----[A-Z ]+-----/g, '').replace(/\s+/g, ''), 'base64');
+        const signingKey = await webcrypto.subtle.importKey('pkcs8', pkcs8, RSA_SHA256, false, ['sign']);
+        cert = await x509.X509CertificateGenerator.create({
+            ...validity,
+            subject: commonName ? `CN=${commonName}` : '',
+            issuer: new x509.X509Certificate(ca.cert).subject,
+            signingAlgorithm: RSA_SHA256,
+            publicKey: keys.publicKey,
+            signingKey,
+            extensions,
+        });
+    } else {
+        cert = await x509.X509CertificateGenerator.createSelfSigned({
+            ...validity,
+            name: `CN=${commonName}`,
+            signingAlgorithm: RSA_SHA256,
+            keys,
+            extensions,
+        });
+    }
+    const der = Buffer.from(await webcrypto.subtle.exportKey('pkcs8', keys.privateKey));
+    const key = `-----BEGIN PRIVATE KEY-----\n${der.toString('base64').match(/.{1,64}/g).join('\n')}\n-----END PRIVATE KEY-----\n`;
+    return { cert: cert.toString('pem'), key };
+}
 
 // Mock certificate for testing
 const mockCert = {
@@ -703,6 +746,441 @@ describe('helpers', () => {
             };
             const check = allowEmail(['other@example.com']);
             assert.equal(check(cert), false);
+        });
+    });
+
+    describe('allowCA', () => {
+        let pki;        // root CA + client signed by it
+        let chain;      // intermediate signed by pki.ca + client signed by the intermediate
+        let lookalike;  // a second CA with the same subject DN but a different key
+        let selfSigned;
+        let expired;
+        let notYetValid;
+        let expiredCa;
+
+        const day = 24 * 60 * 60 * 1000;
+        const signedBy = (ca, commonName, dates = {}) => selfsigned.generate(
+            [{ name: 'commonName', value: commonName }],
+            {
+                algorithm: 'sha256',
+                keySize: 2048,
+                notBeforeDate: new Date(Date.now() - 60_000),
+                ...dates,
+                ...(ca ? { ca: { key: ca.key, cert: ca.cert } } : {}),
+                extensions: [{ name: 'basicConstraints', cA: !ca, critical: true }],
+            }
+        );
+
+        beforeAll(async () => {
+            pki = await generateMtlsCertificates();
+            chain = await generateIntermediateChain(pki.ca);
+            lookalike = await generateMtlsCertificates({ caCommonName: 'Test CA' });
+            selfSigned = await generateClientCertificate('Self Signed');
+            expired = await signedBy(pki.ca, 'Expired', { notBeforeDate: new Date(Date.now() - 2 * day), notAfterDate: new Date(Date.now() - day) });
+            notYetValid = await signedBy(pki.ca, 'Future', { notBeforeDate: new Date(Date.now() + day), notAfterDate: new Date(Date.now() + 2 * day) });
+            const oldCa = await signedBy(null, 'Old CA', { notBeforeDate: new Date(Date.now() - 2 * day), notAfterDate: new Date(Date.now() - day) });
+            expiredCa = { ca: { cert: oldCa.cert, key: oldCa.private }, client: await signedBy({ cert: oldCa.cert, key: oldCa.private }, 'Client Of Old CA') };
+        }, 60_000);
+
+        it('should accept a certificate issued directly by a configured CA', () => {
+            const cert = pemToCertificate(pki.client.cert);
+            assert.equal(allowCA(pki.ca.cert)(cert), true);
+            assert.equal(allowCA([pki.ca.cert])(cert), true);
+            assert.equal(allowCA(pemToDer(pki.ca.cert))(cert), true);
+        });
+
+        it('should reject a self-signed certificate', () => {
+            assert.equal(allowCA(pki.ca.cert)(pemToCertificate(selfSigned.cert)), false);
+        });
+
+        it('should reject a certificate from a CA with the same subject name but a different key', () => {
+            const cert = pemToCertificate(lookalike.client.cert);
+            assert.equal(cert.issuer.CN, 'Test CA');
+            assert.equal(allowCA(pki.ca.cert)(cert), false);
+        });
+
+        it('should walk the issuerCertificate chain to a configured root', () => {
+            const leaf = pemToCertificate(chain.client.cert);
+            assert.equal(allowCA(pki.ca.cert)(leaf), false);
+
+            leaf.issuerCertificate = pemToCertificate(chain.intermediate.cert);
+            assert.equal(allowCA(pki.ca.cert)(leaf), true);
+        });
+
+        it('should trust an intermediate listed as an anchor without the root', () => {
+            const leaf = pemToCertificate(chain.client.cert);
+            assert.equal(allowCA(chain.intermediate.cert)(leaf), true);
+        });
+
+        it('should reject a chain link through a certificate that is not a CA', async () => {
+            const leaf = await signedBy(pki.ca, 'Mallory');
+            const forged = await signedBy({ cert: leaf.cert, key: leaf.private }, 'admin');
+            assert.equal(allowCA(pki.ca.cert)(pemToCertificate(leaf.cert)), true);
+
+            const cert = pemToCertificate(forged.cert);
+            cert.issuerCertificate = pemToCertificate(leaf.cert);
+            assert.equal(allowCA(pki.ca.cert)(cert), false);
+        });
+
+        it('should require clientAuth when the leaf carries an extended key usage', async () => {
+            const withEku = (usage) => selfsigned.generate([{ name: 'commonName', value: usage }], {
+                algorithm: 'sha256',
+                keySize: 2048,
+                notBeforeDate: new Date(Date.now() - 60_000),
+                ca: { key: pki.ca.key, cert: pki.ca.cert },
+                extensions: [
+                    { name: 'basicConstraints', cA: false, critical: true },
+                    { name: 'extKeyUsage', [usage]: true },
+                ],
+            });
+            const serverOnly = await withEku('serverAuth');
+            const client = await withEku('clientAuth');
+
+            assert.equal(allowCA(pki.ca.cert)(pemToCertificate(serverOnly.cert)), false);
+            assert.equal(allowCA(pki.ca.cert)(pemToCertificate(client.cert)), true);
+        });
+
+        const signedCa = (ca, commonName, pathLenConstraint) => selfsigned.generate(
+            [{ name: 'commonName', value: commonName }],
+            {
+                algorithm: 'sha256',
+                keySize: 2048,
+                notBeforeDate: new Date(Date.now() - 60_000),
+                ...(ca ? { ca: { key: ca.key, cert: ca.cert } } : {}),
+                extensions: [
+                    { name: 'basicConstraints', cA: true, critical: true, ...(pathLenConstraint === undefined ? {} : { pathLenConstraint }) },
+                    { name: 'keyUsage', keyCertSign: true, cRLSign: true, critical: true },
+                ],
+            }
+        );
+        const asCa = (generated) => ({ cert: generated.cert, key: generated.private });
+        const chainOf = (...pems) => {
+            const certs = pems.map(pemToCertificate);
+            for (let i = 0; i < certs.length - 1; i++) {
+                certs[i].issuerCertificate = certs[i + 1];
+            }
+            return certs[0];
+        };
+
+        it('should enforce pathLenConstraint on intermediates', async () => {
+            const limited = await signedCa(pki.ca, 'Limited Intermediate', 0);
+            const subCa = await signedCa(asCa(limited), 'Sub CA');
+            const deep = await signedBy(asCa(subCa), 'Deep Leaf');
+            assert.equal(allowCA(pki.ca.cert)(chainOf(deep.cert, subCa.cert, limited.cert)), false);
+
+            const shallow = await signedBy(asCa(limited), 'Shallow Leaf');
+            assert.equal(allowCA(pki.ca.cert)(chainOf(shallow.cert, limited.cert)), true);
+        });
+
+        it('should count a rollover intermediate whose names differ only by whitespace encoding', async () => {
+            // Root name carries a non-breaking space, the intermediate an ASCII
+            // space: they render identically but the DER Names differ, so the
+            // intermediate is not self-issued and must count toward the path length.
+            const NBSP = '\u00a0';
+            const bc = (ca, pathLen) => new x509.BasicConstraintsExtension(ca, pathLen, true);
+            const root = await issueWithExtensions(null, `Rollover${NBSP}CA`, [bc(true, 0)]);
+            const intermediate = await issueWithExtensions(root, 'Rollover CA', [bc(true, undefined)]);
+            const leaf = await issueWithExtensions(intermediate, 'Rollover Leaf', [bc(false, undefined)]);
+            assert.equal(allowCA(root.cert)(chainOf(leaf.cert, intermediate.cert, root.cert)), false);
+
+            const roomier = await issueWithExtensions(null, `Rollover${NBSP}CA`, [bc(true, 1)]);
+            const under = await issueWithExtensions(roomier, 'Rollover CA', [bc(true, undefined)]);
+            const underLeaf = await issueWithExtensions(under, 'Rollover Leaf', [bc(false, undefined)]);
+            assert.equal(allowCA(roomier.cert)(chainOf(underLeaf.cert, under.cert, roomier.cert)), true);
+        });
+
+        it('should count a rollover intermediate whose name differs only by Unicode case', async () => {
+            // U+212A KELVIN SIGN lowercases to 'k' in Unicode but not in the
+            // ASCII-only fold X.509 canonical name comparison applies, so the
+            // intermediate is not self-issued and must count toward the path length.
+            const KELVIN = '\u212a';
+            const bc = (ca, pathLen) => new x509.BasicConstraintsExtension(ca, pathLen, true);
+            const root = await issueWithExtensions(null, 'Rollover KA', [bc(true, 0)]);
+            const intermediate = await issueWithExtensions(root, `Rollover ${KELVIN}A`, [bc(true, undefined)]);
+            const leaf = await issueWithExtensions(intermediate, 'Rollover Leaf', [bc(false, undefined)]);
+            assert.equal(allowCA(root.cert)(chainOf(leaf.cert, intermediate.cert, root.cert)), false);
+
+            const roomier = await issueWithExtensions(null, 'Rollover KA', [bc(true, 1)]);
+            const under = await issueWithExtensions(roomier, `Rollover ${KELVIN}A`, [bc(true, undefined)]);
+            const underLeaf = await issueWithExtensions(under, 'Rollover Leaf', [bc(false, undefined)]);
+            assert.equal(allowCA(roomier.cert)(chainOf(underLeaf.cert, under.cert, roomier.cert)), true);
+        });
+
+        it('should not count a genuine rollover intermediate that is self-issued', async () => {
+            const bc = (ca, pathLen) => new x509.BasicConstraintsExtension(ca, pathLen, true);
+            const root = await issueWithExtensions(null, 'Rollover CA', [bc(true, 0)]);
+            const rollover = await issueWithExtensions(root, 'Rollover CA', [bc(true, undefined)]);
+            const leaf = await issueWithExtensions(rollover, 'Rollover Leaf', [bc(false, undefined)]);
+            assert.equal(allowCA(root.cert)(chainOf(leaf.cert, rollover.cert, root.cert)), true);
+        });
+
+        it('should enforce pathLenConstraint on the anchor', async () => {
+            const root = await signedCa(null, 'Shallow Root', 0);
+            const intermediate = await signedCa(asCa(root), 'Intermediate Under Shallow Root');
+            const twoDeep = await signedBy(asCa(intermediate), 'Two Deep');
+            assert.equal(allowCA(root.cert)(chainOf(twoDeep.cert, intermediate.cert)), false);
+
+            const direct = await signedBy(asCa(root), 'Direct');
+            assert.equal(allowCA(root.cert)(pemToCertificate(direct.cert)), true);
+        });
+
+        it('should reject an intermediate whose keyUsage lacks keyCertSign', async () => {
+            const signer = await selfsigned.generate([{ name: 'commonName', value: 'No CertSign' }], {
+                algorithm: 'sha256',
+                keySize: 2048,
+                notBeforeDate: new Date(Date.now() - 60_000),
+                ca: { key: pki.ca.key, cert: pki.ca.cert },
+                extensions: [
+                    { name: 'basicConstraints', cA: true, critical: true },
+                    { name: 'keyUsage', digitalSignature: true, critical: true },
+                ],
+            });
+            const leaf = await signedBy(asCa(signer), 'Leaf Of No CertSign');
+            assert.equal(allowCA(pki.ca.cert)(chainOf(leaf.cert, signer.cert)), false);
+        });
+
+        it('should reject certificates carrying a critical extension it does not process', async () => {
+            const unknownCritical = new x509.Extension('1.3.6.1.4.1.99999.1', true, new Uint8Array([0x05, 0x00]));
+            const unknownNonCritical = new x509.Extension('1.3.6.1.4.1.99999.1', false, new Uint8Array([0x05, 0x00]));
+
+            const leaf = await issueWithExtensions(pki.ca, 'Critical Leaf', [unknownCritical]);
+            assert.equal(allowCA(pki.ca.cert)(pemToCertificate(leaf.cert)), false);
+
+            const tolerated = await issueWithExtensions(pki.ca, 'Tolerated Leaf', [unknownNonCritical]);
+            assert.equal(allowCA(pki.ca.cert)(pemToCertificate(tolerated.cert)), true);
+
+            const intermediate = await issueWithExtensions(pki.ca, 'Critical Intermediate', [
+                new x509.BasicConstraintsExtension(true, undefined, true),
+                new x509.KeyUsagesExtension(x509.KeyUsageFlags.keyCertSign, true),
+                unknownCritical,
+            ]);
+            const underIntermediate = await signedBy(intermediate, 'Under Critical Intermediate');
+            assert.equal(allowCA(pki.ca.cert)(chainOf(underIntermediate.cert, intermediate.cert)), false);
+
+            const root = await issueWithExtensions(null, 'Critical Root', [unknownCritical]);
+            assert.throws(() => allowCA(root.cert), /unsupported critical extension 1\.3\.6\.1\.4\.1\.99999\.1/);
+        });
+
+        it('should reject unprocessed extensions by OID when critical and tolerate them otherwise', async () => {
+            const bodies = {
+                // CertificatePolicies { PolicyInformation { anyPolicy } }
+                '2.5.29.32': '300830060604551d2000',
+                // CRLDistributionPoints { DistributionPoint { fullName { URI http://crl.test/ca.crl } } }
+                '2.5.29.31': '301e301ca01aa0188616687474703a2f2f63726c2e746573742f63612e63726c',
+                // IssuerAltName { URI http://ca.test }
+                '2.5.29.18': '3010860e687474703a2f2f63612e74657374',
+                // AuthorityInfoAccess { AccessDescription { id-ad-ocsp, URI http://ocsp.test } }
+                '1.3.6.1.5.5.7.1.1': '301e301c06082b060105050730018610687474703a2f2f6f6373702e74657374',
+            };
+            for (const [oid, hex] of Object.entries(bodies)) {
+                const value = Buffer.from(hex, 'hex');
+                const rejected = await issueWithExtensions(pki.ca, `Critical ${oid}`, [new x509.Extension(oid, true, value)]);
+                assert.equal(allowCA(pki.ca.cert)(pemToCertificate(rejected.cert)), false, oid);
+                const tolerated = await issueWithExtensions(pki.ca, `Tolerated ${oid}`, [new x509.Extension(oid, false, value)]);
+                assert.equal(allowCA(pki.ca.cert)(pemToCertificate(tolerated.cert)), true, oid);
+            }
+
+            const policyRoot = await issueWithExtensions(null, 'Policy Root', [
+                new x509.BasicConstraintsExtension(true, undefined, true),
+                new x509.KeyUsagesExtension(x509.KeyUsageFlags.keyCertSign, true),
+                new x509.Extension('2.5.29.32', true, Buffer.from(bodies['2.5.29.32'], 'hex')),
+            ]);
+            assert.throws(() => allowCA(policyRoot.cert), /unsupported critical extension 2\.5\.29\.32/);
+        });
+
+        it('should accept a leaf with an empty subject and a critical subjectAltName', async () => {
+            const workload = await issueWithExtensions(pki.ca, '', [
+                new x509.SubjectAlternativeNameExtension([{ type: 'url', value: 'spiffe://example.org/workload' }], true),
+            ]);
+            assert.equal(allowCA(pki.ca.cert)(pemToCertificate(workload.cert)), true);
+        });
+
+        it('should require clientAuth in the extended key usage of intermediates too', async () => {
+            const caExtensions = (usage) => [
+                new x509.BasicConstraintsExtension(true, undefined, true),
+                new x509.KeyUsagesExtension(x509.KeyUsageFlags.keyCertSign, true),
+                new x509.ExtendedKeyUsageExtension([usage], true),
+            ];
+            const serverCa = await issueWithExtensions(pki.ca, 'Server CA', caExtensions(x509.ExtendedKeyUsage.serverAuth));
+            const underServerCa = await signedBy(serverCa, 'Under Server CA');
+            assert.equal(allowCA(pki.ca.cert)(chainOf(underServerCa.cert, serverCa.cert)), false);
+
+            const clientCa = await issueWithExtensions(pki.ca, 'Client CA', caExtensions(x509.ExtendedKeyUsage.clientAuth));
+            const underClientCa = await signedBy(clientCa, 'Under Client CA');
+            assert.equal(allowCA(pki.ca.cert)(chainOf(underClientCa.cert, clientCa.cert)), true);
+        });
+
+        it('should require digitalSignature or keyAgreement in the leaf keyUsage when present', async () => {
+            const encipherOnly = await issueWithExtensions(pki.ca, 'Encipher Leaf', [
+                new x509.KeyUsagesExtension(x509.KeyUsageFlags.keyEncipherment, true),
+                new x509.ExtendedKeyUsageExtension([x509.ExtendedKeyUsage.clientAuth]),
+            ]);
+            assert.equal(allowCA(pki.ca.cert)(pemToCertificate(encipherOnly.cert)), false);
+
+            const agreement = await issueWithExtensions(pki.ca, 'Agreement Leaf', [
+                new x509.KeyUsagesExtension(x509.KeyUsageFlags.keyAgreement, true),
+            ]);
+            assert.equal(allowCA(pki.ca.cert)(pemToCertificate(agreement.cert)), true);
+            assert.equal(allowCA(pki.ca.cert)(pemToCertificate(pki.client.cert)), true);
+        });
+
+        it('should reject anchors that are not CA certificates or do not permit clientAuth', async () => {
+            assert.throws(() => allowCA(pki.client.cert), /is not usable as a CA certificate/);
+
+            const serverRoot = await issueWithExtensions(null, 'Server Root', [
+                new x509.BasicConstraintsExtension(true, undefined, true),
+                new x509.KeyUsagesExtension(x509.KeyUsageFlags.keyCertSign, true),
+                new x509.ExtendedKeyUsageExtension([x509.ExtendedKeyUsage.serverAuth], true),
+            ]);
+            assert.throws(() => allowCA(serverRoot.cert), /does not permit clientAuth/);
+        });
+
+        it('should not count self-issued rollover certificates toward pathLenConstraint', async () => {
+            const root = await signedCa(null, 'Rollover Root', 1);
+            const rollover = await signedCa(asCa(root), 'Rollover Root');
+            const subCa = await signedCa(asCa(rollover), 'Rollover Sub CA');
+            const leaf = await signedBy(asCa(subCa), 'Rollover Leaf');
+            assert.equal(allowCA(root.cert)(chainOf(leaf.cert, subCa.cert, rollover.cert)), true);
+        });
+
+        it('should reject name constraints at any criticality', async () => {
+            // NameConstraints { permittedSubtrees [0] { GeneralSubtree { dNSName "allowed.test" } } }
+            const nameConstraints = Buffer.concat([Buffer.from([0x30, 0x12, 0xa0, 0x10, 0x30, 0x0e, 0x82, 0x0c]), Buffer.from('allowed.test')]);
+            for (const critical of [false, true]) {
+                const constrained = await issueWithExtensions(pki.ca, 'Constrained CA', [
+                    new x509.BasicConstraintsExtension(true, undefined, true),
+                    new x509.KeyUsagesExtension(x509.KeyUsageFlags.keyCertSign, true),
+                    new x509.Extension('2.5.29.30', critical, nameConstraints),
+                ]);
+                const leaf = await signedBy(constrained, 'evil.test');
+                assert.equal(allowCA(pki.ca.cert)(chainOf(leaf.cert, constrained.cert)), false);
+                const named = critical ? /unsupported critical extension 2\.5\.29\.30/ : /unsupported extension 2\.5\.29\.30/;
+                assert.throws(() => allowCA(constrained.cert), named);
+            }
+        });
+
+        it('should detect self-issued rollover certificates by canonical name', async () => {
+            const root = await signedCa(null, 'rollover root', 1);
+            const rollover = await signedCa(asCa(root), 'ROLLOVER  ROOT');
+            const subCa = await signedCa(asCa(rollover), 'Rollover Sub CA 2');
+            const leaf = await signedBy(asCa(subCa), 'Rollover Leaf 2');
+            assert.equal(allowCA(root.cert)(chainOf(leaf.cert, subCa.cert, rollover.cert)), true);
+        });
+
+        it('should throw at construction when maxDepth is not a positive integer', () => {
+            for (const maxDepth of [0, -1, 1.5, 'ten', Infinity]) {
+                assert.throws(() => allowCA(pki.ca.cert, { maxDepth }), /maxDepth must be a positive integer/);
+            }
+        });
+
+        it('should reject a chain whose link does not verify', () => {
+            const leaf = pemToCertificate(chain.client.cert);
+            leaf.issuerCertificate = pemToCertificate(lookalike.ca.cert);
+            assert.equal(allowCA([pki.ca.cert, lookalike.ca.cert])(leaf), false);
+        });
+
+        it('should stop at a self-referencing root', () => {
+            const cert = pemToCertificate(selfSigned.cert);
+            cert.issuerCertificate = cert;
+            assert.equal(allowCA(pki.ca.cert)(cert), false);
+        });
+
+        it('should reject expired and not-yet-valid certificates', () => {
+            assert.equal(allowCA(pki.ca.cert)(pemToCertificate(expired.cert)), false);
+            assert.equal(allowCA(pki.ca.cert)(pemToCertificate(notYetValid.cert)), false);
+        });
+
+        it('should reject a certificate issued by an expired CA', () => {
+            assert.equal(allowCA(expiredCa.ca.cert)(pemToCertificate(expiredCa.client.cert)), false);
+        });
+
+        it('should stop walking at maxDepth', () => {
+            const leaf = pemToCertificate(chain.client.cert);
+            leaf.issuerCertificate = pemToCertificate(chain.intermediate.cert);
+            assert.equal(allowCA(pki.ca.cert, { maxDepth: 1 })(leaf), false);
+            assert.equal(allowCA(pki.ca.cert, { maxDepth: 2 })(leaf), true);
+        });
+
+        it('should reject certificates without parseable raw bytes', () => {
+            const check = allowCA(pki.ca.cert);
+            assert.equal(check({ subject: { CN: 'no raw' } }), false);
+            assert.equal(check({ raw: Buffer.from('not a certificate') }), false);
+
+            const leaf = pemToCertificate(chain.client.cert);
+            leaf.issuerCertificate = { subject: { CN: 'no raw' } };
+            assert.equal(check(leaf), false);
+        });
+
+        it('should return false with an empty CA list', () => {
+            assert.equal(allowCA([])(pemToCertificate(pki.client.cert)), false);
+        });
+
+        it('should trust every certificate in a PEM bundle', async () => {
+            const second = await generateMtlsCertificates({ caCommonName: 'Bundled CA' });
+            const bundle = `${pki.ca.cert}\n${second.ca.cert}`;
+            for (const input of [bundle, Buffer.from(bundle)]) {
+                const check = allowCA(input);
+                assert.equal(check(pemToCertificate(pki.client.cert)), true);
+                assert.equal(check(pemToCertificate(second.client.cert)), true);
+            }
+
+            // The first block alone must not vouch for the second CA's client.
+            assert.equal(allowCA(pki.ca.cert)(pemToCertificate(second.client.cert)), false);
+        });
+
+        it('should throw on a bundle whose PEM blocks it cannot split', async () => {
+            const second = await generateMtlsCertificates({ caCommonName: 'Trusted Label CA' });
+            const trust = (pem) => pem.replace(/BEGIN CERTIFICATE/g, 'BEGIN TRUSTED CERTIFICATE').replace(/END CERTIFICATE/g, 'END TRUSTED CERTIFICATE');
+            const bundle = `${trust(pki.ca.cert)}\n${trust(second.ca.cert)}`;
+            assert.throws(() => allowCA(bundle), /could not split this PEM bundle/);
+
+            // A single unrecognized block still reaches X509Certificate intact.
+            assert.equal(allowCA(trust(pki.ca.cert))(pemToCertificate(pki.client.cert)), true);
+
+            // A bundle mixing recognized and unrecognized labels must not drop
+            // the unrecognized one.
+            assert.throws(
+                () => allowCA(`${pki.ca.cert}\n${trust(second.ca.cert)}`),
+                /could not split this PEM bundle/
+            );
+        });
+
+        it('should name keyUsage when an anchor carries cA without keyCertSign', async () => {
+            const noCertSign = await issueWithExtensions(null, 'No CertSign Root', [
+                new x509.BasicConstraintsExtension(true, undefined, true),
+                new x509.KeyUsagesExtension(x509.KeyUsageFlags.digitalSignature, true),
+            ]);
+            assert.throws(() => allowCA(noCertSign.cert), /needs basicConstraints cA, and keyCertSign where keyUsage is present/);
+        });
+
+        it('should reject a chain through an expired or not-yet-valid intermediate', async () => {
+            const intermediateAt = (dates) => selfsigned.generate([{ name: 'commonName', value: 'Dated Intermediate' }], {
+                algorithm: 'sha256',
+                keySize: 2048,
+                ca: { key: pki.ca.key, cert: pki.ca.cert },
+                ...dates,
+                extensions: [
+                    { name: 'basicConstraints', cA: true, critical: true },
+                    { name: 'keyUsage', keyCertSign: true, cRLSign: true, critical: true },
+                ],
+            });
+
+            const current = await intermediateAt({ notBeforeDate: new Date(Date.now() - 60_000) });
+            const live = await signedBy(asCa(current), 'Leaf Of Current Intermediate');
+            assert.equal(allowCA(pki.ca.cert)(chainOf(live.cert, current.cert)), true);
+
+            // The leaf stays valid; only the intermediate's window moves.
+            const stale = await intermediateAt({ notBeforeDate: new Date(Date.now() - 2 * day), notAfterDate: new Date(Date.now() - day) });
+            const underStale = await signedBy(asCa(stale), 'Leaf Of Stale Intermediate');
+            assert.equal(allowCA(pki.ca.cert)(chainOf(underStale.cert, stale.cert)), false);
+
+            const future = await intermediateAt({ notBeforeDate: new Date(Date.now() + day), notAfterDate: new Date(Date.now() + 2 * day) });
+            const underFuture = await signedBy(asCa(future), 'Leaf Of Future Intermediate');
+            assert.equal(allowCA(pki.ca.cert)(chainOf(underFuture.cert, future.cert)), false);
+        });
+
+        it('should throw at construction when a CA certificate cannot be parsed', () => {
+            assert.throws(() => allowCA('not a certificate'));
         });
     });
 

@@ -23,6 +23,7 @@ describe('helpers (CommonJS wrapper)', () => {
     it('should export all expected helper functions', async () => {
         const mod = await helpers.load();
         const expectedFunctions = [
+            'allowCA',
             'allowCN',
             'allowFingerprints',
             'allowIssuer',

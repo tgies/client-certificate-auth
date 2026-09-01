@@ -338,6 +338,15 @@ const _chainInHooks = clientCertificateAuth(() => true, {
     onRejected: (cert) => void cert?.issuerCertificate?.subject,
 });
 
+// Test 28: allowCA accepts PEM strings, DER buffers, and arrays of either
+import { allowCA } from '../lib/helpers.js';
+declare const caPem: string;
+declare const caDer: Buffer;
+const _allowCaPem = clientCertificateAuth(allowCA(caPem), { includeChain: true });
+const _allowCaMixed = clientCertificateAuth(allowCA([caDer, caPem], { maxDepth: 3 }));
+void _allowCaPem;
+void _allowCaMixed;
+
 // Suppress unused variable warnings - this file is for type-checking only
 void _statusCode;
 void _syncMiddleware;
