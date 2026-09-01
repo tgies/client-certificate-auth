@@ -60,7 +60,6 @@ describe('clientCertificateAuth', () => {
       headers: {}
     };
 
-
     const mockUnauthReq = {
       secure: true,
       socket: { authorized: false, authorizationError: 'CERT_UNTRUSTED', getPeerCertificate: getMockPeerCertificate },
@@ -561,7 +560,6 @@ describe('clientCertificateAuth', () => {
         });
       });
     });
-
 
     describe('header-based certificate extraction', () => {
       let testPem;
