@@ -12,12 +12,77 @@ jobs:
     name: Publish to npm
     runs-on: ubuntu-latest
     permissions:
+      checks: read     # needed to read the check runs on the tagged commit
       contents: write  # needed for creating GitHub releases
       id-token: write  # needed for npm provenance
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0
           persist-credentials: false
+
+      - name: Verify the tag matches package.json and is on master
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          if [ "$TAG" != "v$version" ]; then
+            echo "tag $TAG does not match package.json version $version" >&2
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/master; then
+            echo "tagged commit $GITHUB_SHA is not on master" >&2
+            exit 1
+          fi
+
+      - name: Wait for the required checks on the tagged commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Keep in sync with the required status checks on master. The two
+          # Analyze checks come from codeql.yml, which has a paths-ignore for
+          # docs and markdown: a release commit touching only those paths runs
+          # no CodeQL, so this poll times out and the publish fails closed.
+          # Include one non-ignored path in such a release commit.
+          required=(
+            "Test (Node 20)" "Test (Node 22)" "Test (Node 24)" "Test (Node 26)"
+            "TypeScript" "Package Validation" "Commit Lint" "E2E Proxy Tests"
+            "Analyze (actions)" "Analyze (javascript-typescript)"
+          )
+          pending=("${required[@]}")
+          for attempt in $(seq 1 60); do
+            # Newest run per check name from the GitHub Actions app (id 15368), the
+            # app the branch protection binds each required check to: a re-run or a
+            # second suite (CodeQL's scheduled scan) produces several runs per name.
+            # A query failure is transient, so it retries rather than aborting the
+            # job under `set -e`.
+            if ! runs="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/check-runs?per_page=100" \
+              --jq '[.check_runs[] | select(.app.id == 15368)] | sort_by(.id) | reverse | unique_by(.name) | .[] | "\(.name)\t\(.status)\t\(.conclusion // "")"')"; then
+              echo "could not read check runs (attempt $attempt of 60); retrying"
+              sleep 30
+              continue
+            fi
+            pending=()
+            for name in "${required[@]}"; do
+              line="$(printf '%s\n' "$runs" | awk -F'\t' -v n="$name" '$1 == n')"
+              status="$(printf '%s' "$line" | cut -f2)"
+              conclusion="$(printf '%s' "$line" | cut -f3)"
+              if [ "$status" != "completed" ]; then
+                pending+=("$name")
+              elif [ "$conclusion" != "success" ]; then
+                echo "required check '$name' concluded with '$conclusion'; re-run that workflow for $GITHUB_SHA, then re-run this job" >&2
+                exit 1
+              fi
+            done
+            if [ "${#pending[@]}" -eq 0 ]; then
+              echo "all required checks succeeded"
+              exit 0
+            fi
+            echo "waiting for required checks (attempt $attempt of 60): ${pending[*]}"
+            sleep 30
+          done
+          echo "required checks did not complete in time: ${pending[*]}" >&2
+          exit 1
 
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -29,6 +94,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Lint
+        run: npm run lint
+
       - name: Type check
         run: npm run typecheck
 
@@ -36,7 +104,7 @@ jobs:
         run: npm run test:coverage
 
       - name: Validate package exports
-        run: npx publint
+        run: npx --no -- publint
 
       - name: Security audit
         run: npm audit --audit-level=moderate --omit=dev

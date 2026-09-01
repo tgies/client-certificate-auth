@@ -37,7 +37,7 @@ jobs:
         run: npm ci
       
       - name: Run Stryker
-        run: npx stryker run
+        run: npx --no -- stryker run
         env:
           STRYKER_DASHBOARD_API_KEY: ${{ secrets.STRYKER_DASHBOARD_API_KEY }}
       
