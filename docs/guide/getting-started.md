@@ -218,12 +218,11 @@ Framework-agnostic certificate extraction function exported from `client-certifi
 **Returns:** `ExtractionResult`
 
 ```typescript
-{
-  success: boolean;
-  certificate: PeerCertificate | null;
-  reason: string | null;  // Rejection reason if success is false
-}
+| { success: true; certificate: ChainedPeerCertificate; reason: null }
+| { success: false; certificate: null; reason: ExtractionFailureReason }
 ```
+
+The union is discriminated on `success`, so `if (!result.success)` narrows `reason` to a string and the success branch exposes `certificate` without a null check.
 
 **Rejection reasons:**
 

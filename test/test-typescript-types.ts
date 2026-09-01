@@ -182,7 +182,7 @@ async function testExpressIntegrationCjsLoad() {
 
 // Test 20: Lambda subpath - extractClientCertificateFromLambdaEvent
 import { extractClientCertificateFromLambdaEvent } from '../lib/lambda.js';
-import type { LambdaEventWithClientCert, LambdaExtractionResult } from '../lib/lambda.js';
+import type { LambdaEventWithClientCert, LambdaExtractionFailureReason, LambdaExtractionResult } from '../lib/lambda.js';
 function testLambdaExtractor() {
     const event: LambdaEventWithClientCert = {
         requestContext: {
@@ -193,11 +193,16 @@ function testLambdaExtractor() {
     };
     const result: LambdaExtractionResult = extractClientCertificateFromLambdaEvent(event);
     if (result.success) {
-        const _cn: string | string[] | undefined = result.certificate?.subject?.CN;
+        const _cn: string | string[] | undefined = result.certificate.subject.CN;
         void _cn;
+        // Exactly null, not merely nullable.
+        const _reasonIsNull: null = result.reason;
+        void _reasonIsNull;
     } else {
-        const _reason: string | null = result.reason;
+        const _reason: 'lambda_event_missing_clientcert' | 'lambda_event_clientcert_malformed' = result.reason;
         void _reason;
+        const _certIsNull: null = result.certificate;
+        void _certIsNull;
     }
 }
 
@@ -223,7 +228,7 @@ function testFetchExtractor() {
         includeChain: true,
     });
     if (result.success) {
-        const _cn: string | string[] | undefined = result.certificate?.subject?.CN;
+        const _cn: string | string[] | undefined = result.certificate.subject.CN;
         void _cn;
     }
 }
@@ -236,6 +241,47 @@ function testFetchExtractorPlainObject() {
     });
     void _r;
 }
+
+// Test 22b: ExtractionResult narrows on success in both directions
+import type { ExtractionFailureReason, ExtractionResult } from '../lib/extractor.js';
+function testExtractionResultNarrowing(req: { headers: Record<string, string | undefined> }) {
+    const result: ExtractionResult = extractClientCertificate(req, { certificateSource: 'aws-alb' });
+    if (!result.success) {
+        const _upper: string = result.reason.toUpperCase();
+        void _upper;
+        // @ts-expect-error - certificate is null on failure
+        const _never = result.certificate.subject;
+        void _never;
+        // Exactly null, not merely nullable: the line above still errors if the
+        // arm is widened, so it does not pin this on its own.
+        const _certificateIsNull: null = result.certificate;
+        void _certificateIsNull;
+        return;
+    }
+    const _cn: string | string[] | undefined = result.certificate.subject.CN;
+    void _cn;
+    // @ts-expect-error - reason is null on success
+    const _noReason: string = result.reason;
+    void _noReason;
+    // Exactly null, not merely nullable.
+    const _reasonIsNull: null = result.reason;
+    void _reasonIsNull;
+}
+
+// Test 22c: ExtractionFailureReason is exhaustive over the documented codes
+function describeFailure(reason: ExtractionFailureReason): string {
+    switch (reason) {
+        case 'verification_header_mismatch':
+            return 'verify';
+        case 'header_missing_or_malformed':
+            return 'header';
+        case 'socket_not_authorized':
+            return 'socket';
+        case 'certificate_not_retrievable':
+            return 'retrieve';
+    }
+}
+void describeFailure;
 
 // Test 23: Fetch CJS load() returns the fetch module
 import type cjsFetch from '../lib/fetch.cjs';
@@ -316,6 +362,17 @@ void _azureAppService;
 void _cloudflareRfc9440;
 void _envoy;
 void _traefik;
+// Test 20a: LambdaExtractionFailureReason is exhaustive over the documented codes
+function describeLambdaFailure(reason: LambdaExtractionFailureReason): string {
+    switch (reason) {
+        case 'lambda_event_missing_clientcert':
+            return 'missing';
+        case 'lambda_event_clientcert_malformed':
+            return 'malformed';
+    }
+}
+void describeLambdaFailure;
+
 void testLambdaExtractor;
 void testCjsLambdaLoad;
 void testFetchExtractor;
