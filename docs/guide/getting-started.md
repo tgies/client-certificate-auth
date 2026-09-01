@@ -229,8 +229,8 @@ Framework-agnostic certificate extraction function exported from `client-certifi
 
 - `'verification_header_mismatch'` — Proxy verify header didn't match expected value
 - `'header_missing_or_malformed'` — Header extraction failed and no fallback configured
-- `'socket_not_authorized'` — Socket not authorized for TLS client cert
-- `'certificate_not_retrievable'` — Socket authorized but `getPeerCertificate()` returned empty
+- `'socket_not_authorized'` — Socket not authorized for TLS client cert, or unreadable
+- `'certificate_not_retrievable'` — Socket authorized but `getPeerCertificate()` is missing, returned empty, or threw
 
 **Example - Building a Koa adapter:**
 

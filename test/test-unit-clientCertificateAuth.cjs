@@ -566,6 +566,62 @@ describe('clientCertificateAuth (CommonJS)', () => {
                     done();
                 });
             });
+
+            it('should pass 401 error to next() when the socket accessor throws', done => {
+                const reqThrowingSocket = {
+                    secure: true,
+                    get socket() { throw new Error('socket destroyed'); }
+                };
+                const middleware = clientCertificateAuth(() => true);
+                middleware(reqThrowingSocket, mockRes, (err) => {
+                    assert.ok(err instanceof Error);
+                    assert.equal(err.status, 401);
+                    done();
+                });
+            });
+
+            it('should pass 401 error to next() when the authorized accessor throws', done => {
+                const reqThrowingAuthorized = {
+                    ...mockGoodReq,
+                    socket: { get authorized() { throw new Error('socket destroyed'); } }
+                };
+                const middleware = clientCertificateAuth(() => true);
+                middleware(reqThrowingAuthorized, mockRes, (err) => {
+                    assert.ok(err instanceof Error);
+                    assert.equal(err.status, 401);
+                    done();
+                });
+            });
+
+            it('should pass 500 error to next() when the getPeerCertificate accessor throws', done => {
+                const reqThrowingAccessor = {
+                    ...mockGoodReq,
+                    socket: {
+                        authorized: true,
+                        get getPeerCertificate() { throw new Error('socket destroyed'); }
+                    }
+                };
+                const middleware = clientCertificateAuth(() => true);
+                middleware(reqThrowingAccessor, mockRes, (err) => {
+                    assert.ok(err instanceof Error);
+                    assert.equal(err.status, 500);
+                    done();
+                });
+            });
+
+            it('should pass 500 error to next() when getPeerCertificate throws', done => {
+                const reqThrowingCert = {
+                    ...mockGoodReq,
+                    socket: { authorized: true, getPeerCertificate: () => { throw new Error('handle destroyed'); } }
+                };
+                const middleware = clientCertificateAuth(() => true);
+                middleware(reqThrowingCert, mockRes, (err) => {
+                    assert.ok(err instanceof Error);
+                    assert.equal(err.status, 500);
+                    assert.ok(err.message.includes('could not be retrieved'));
+                    done();
+                });
+            });
         });
 
         describe('client-facing error sanitization', () => {
