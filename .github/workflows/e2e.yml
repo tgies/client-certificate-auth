@@ -28,10 +28,10 @@ jobs:
         with:
           node-version: 22
           cache: 'npm'
-      
+
       - name: Install dependencies
         run: npm ci
-      
+
       - name: Run E2E proxy tests
         run: npm run test:e2e
 
