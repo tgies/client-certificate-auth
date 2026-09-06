@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **RFC 9440 accepts omitted Base64 padding** — certificate byte sequences now synthesize omitted padding as specified by RFC 8941, while rejecting malformed explicit padding, trailing data, and truncated certificate content.
+- **CA rollover names use encoded attributes** — `allowCA` now recognizes self-issued rollover certificates whose names differ only in insignificant ASCII whitespace or equivalent string encodings. Name comparison preserves RDN order, grouping, and non-ASCII distinctions when enforcing path-length limits.
 
 ### Documentation
 
