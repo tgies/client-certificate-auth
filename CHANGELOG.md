@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **RFC 9440 accepts omitted Base64 padding** — certificate byte sequences now synthesize omitted padding as specified by RFC 8941, while rejecting malformed explicit padding, trailing data, and truncated certificate content.
 
+### Documentation
+
+- **Envoy external hops must sanitize XFCC** — the reverse-proxy guide now recommends `SANITIZE_SET` at the external trust boundary and reserves `FORWARD_ONLY` for trusted proxy hops after header sanitization.
+
 ## [2.2.0] - 2026-08-23
 
 ### Security
