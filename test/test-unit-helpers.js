@@ -18,6 +18,7 @@ import { generateMtlsCertificates, generateIntermediateChain, generateClientCert
 import selfsigned from 'selfsigned';
 import * as x509 from '@peculiar/x509';
 import { webcrypto } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 
 const RSA_SHA256 = { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' };
 
@@ -791,6 +792,60 @@ describe('helpers', () => {
 
         it('should reject a self-signed certificate', () => {
             assert.equal(allowCA(pki.ca.cert)(pemToCertificate(selfSigned.cert)), false);
+        });
+
+        // Keep the extension opaque to the fixture generator, then change its
+        // OID to basicConstraints. The certificate's outer DER remains valid;
+        // the invalid signature must not hide parsing work done before trust.
+        const malformedConstraints = async (value) => {
+            const fixture = await issueWithExtensions(pki.ca, 'Malformed Constraints', [
+                new x509.Extension('2.5.29.127', true, Buffer.from(value, 'hex')),
+            ]);
+            const raw = pemToDer(fixture.cert);
+            const oid = raw.indexOf(Buffer.from('0603551d7f', 'hex'));
+            assert.notEqual(oid, -1);
+            raw[oid + 4] = 0x13;
+            return { raw };
+        };
+
+        it('should reject oversized extension lengths without blocking validation', async () => {
+            const malformed = await malformedConstraints('300602847fffffff');
+            // A process timeout also works when synchronous validation blocks
+            // the event loop; a Jest timeout cannot interrupt that loop.
+            const result = spawnSync(process.execPath, ['--input-type=module', '-e', `
+                import assert from 'node:assert/strict';
+                import { allowCA } from ${JSON.stringify(new URL('../lib/helpers.js', import.meta.url).href)};
+                const { anchor, raw } = JSON.parse(process.argv[1]);
+                assert.equal(allowCA(anchor)({ raw: Buffer.from(raw, 'base64') }), false);
+                assert.throws(() => allowCA(Buffer.from(raw, 'base64')), /malformed DER/);
+            `, JSON.stringify({ anchor: pki.ca.cert, raw: malformed.raw.toString('base64') })], {
+                timeout: 3000,
+                encoding: 'utf8',
+            });
+            assert.equal(result.error, undefined, result.error?.message);
+            assert.equal(result.status, 0, result.stderr);
+        });
+
+        it('should fail closed on truncated, indefinite, and out-of-bounds extension lengths', async () => {
+            const invalid = [
+                '',                 // missing element header
+                '30',               // truncated element header
+                '3080',             // indefinite length
+                '308201',           // truncated long-form length
+                '308701010101010101', // length cannot fit any Node Buffer
+                '30820000',         // non-minimal long-form length
+                '308100',           // short length encoded in long form
+                '30810100',         // nonzero short length encoded in long form
+                '3003020201',       // integer content exceeds its sequence
+                '3005020100',       // sequence content exceeds its buffer
+                '300102',           // truncated child element header
+            ];
+            const verify = allowCA(pki.ca.cert);
+            for (const value of invalid) {
+                const malformed = await malformedConstraints(value);
+                assert.equal(verify(malformed), false, value);
+                assert.throws(() => allowCA(malformed.raw), /malformed DER/, value);
+            }
         });
 
         it('should reject a certificate from a CA with the same subject name but a different key', () => {
