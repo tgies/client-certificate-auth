@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Bound DER extension parsing in `allowCA`** — malformed certificate extensions could declare content beyond their containing buffer and block synchronous validation before trust was checked. Invalid lengths now reject client certificates and produce a construction error for malformed configured CA certificates.
 
+### Fixed
+
+- **RFC 9440 accepts omitted Base64 padding** — certificate byte sequences now synthesize omitted padding as specified by RFC 8941, while rejecting malformed explicit padding, trailing data, and truncated certificate content.
+
 ## [2.2.0] - 2026-08-23
 
 ### Security
