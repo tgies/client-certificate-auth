@@ -77,7 +77,6 @@ export interface ClientCertificateAuthOptions {
      */
     certificateSource?: CertificateSource;
 
-
     /**
      * Custom header name to read certificate from.
      * Overrides preset header name if also using certificateSource.

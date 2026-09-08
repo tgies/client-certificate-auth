@@ -30,13 +30,13 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
-      
+
       - name: Install dependencies
         run: npm ci
-      
+
       - name: Run linter
         run: npm run lint
-      
+
       - name: Run tests with coverage
         # Node 20 in CI has issues with https.createServer when ws package is loaded.
         # Skip WebSocket integration tests on Node 20 to isolate the issue.
@@ -46,7 +46,7 @@ jobs:
           else
             npm run test:coverage
           fi
-      
+
       - name: Upload coverage artifact
         if: matrix.node-version == 24
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -118,7 +118,7 @@ jobs:
 
       - name: Validate package exports (publint)
         run: npx --no -- publint
-      
+
       - name: Validate TypeScript declarations (attw)
         run: npx --no -- @arethetypeswrong/cli --pack . --ignore-rules=missing-export-equals
 
@@ -130,13 +130,13 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
           cache: 'npm'
-      
+
       - name: Install dependencies
         run: npm ci
 
@@ -147,4 +147,3 @@ jobs:
       - name: Validate PR commits
         if: github.event_name == 'pull_request'
         run: npx --no -- commitlint --from ${{ github.event.pull_request.base.sha }} --to ${{ github.event.pull_request.head.sha }} --verbose
-

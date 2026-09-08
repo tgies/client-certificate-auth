@@ -6,7 +6,7 @@ import selfsigned from 'selfsigned';
 
 /**
  * Generate a complete mTLS certificate chain: CA, server, and client certificates.
- * 
+ *
  * @param {Object} options - Optional overrides
  * @param {string} options.caCommonName - CA common name (default: 'Test CA')
  * @param {string} options.serverCommonName - Server common name (default: 'localhost')
