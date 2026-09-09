@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { webcrypto } from 'node:crypto';
+import { X509CertificateGenerator } from '@peculiar/x509';
 import {
     parseUrlPem,
     parseUrlPemAws,
@@ -828,6 +830,34 @@ describe('parsers module', () => {
             assert.equal(parseRfc9440(testDer.toString('base64') + ':'), null);
         });
 
+        it('should accept RFC 9440 certificates with omitted base64 padding', async () => {
+            const algorithm = { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' };
+            const keys = await webcrypto.subtle.generateKey({ ...algorithm, modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]) }, true, ['sign', 'verify']);
+            const paddingLengths = new Set();
+            // Fixed serial and key make the three name lengths cover zero,
+            // one and two padding characters without random fixture lengths.
+            for (const suffix of ['', 'A', 'AB']) {
+                const fixture = await X509CertificateGenerator.createSelfSigned({
+                    serialNumber: '01',
+                    name: `CN=Unpadded Certificate${suffix}`,
+                    keys,
+                    signingAlgorithm: algorithm,
+                });
+                const der = Buffer.from(fixture.rawData);
+                const base64 = der.toString('base64');
+                const unpadded = base64.replace(/=+$/, '');
+                paddingLengths.add(base64.length - unpadded.length);
+                assert.deepEqual(parseRfc9440(`:${base64}:`)?.raw, der);
+                assert.deepEqual(parseRfc9440(`:${unpadded}:`)?.raw, der);
+                assert.equal(parseRfc9440(`:${unpadded}=junk:`), null);
+                assert.equal(parseRfc9440(`:${base64}===:`), null);
+                if (base64.endsWith('==')) {
+                    assert.equal(parseRfc9440(`:${unpadded}=:`), null);
+                }
+            }
+            assert.deepEqual([...paddingLengths].sort(), [0, 1, 2]);
+        });
+
         it('should reject anything outside the byte sequence', () => {
             const encoded = encodeAsRfc9440(testDer);
             assert.equal(parseRfc9440(`${encoded};p=x`), null);
@@ -844,8 +874,8 @@ describe('parsers module', () => {
             assert.equal(parseRfc9440(`:${base64}==junk:`), null);
             assert.equal(parseRfc9440(`:${base64}${base64}:`), null);
             assert.equal(parseRfc9440(`:${base64}A:`), null);
-            // Not a whole number of quartets, so it cannot round trip.
-            assert.equal(parseRfc9440(`:${base64.slice(0, -1)}:`), null);
+            // Truncating certificate data must fail even when padding is optional.
+            assert.equal(parseRfc9440(`:${base64.replace(/=+$/, '').slice(0, -1)}:`), null);
             assert.equal(parseRfc9440(':QUJDRQ:'), null);
             // Non-zero bits under the padding: decodes, but not to this text.
             assert.equal(parseRfc9440(':QR==:'), null);

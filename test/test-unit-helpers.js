@@ -18,6 +18,7 @@ import { generateMtlsCertificates, generateIntermediateChain, generateClientCert
 import selfsigned from 'selfsigned';
 import * as x509 from '@peculiar/x509';
 import { webcrypto } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 
 const RSA_SHA256 = { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' };
 
@@ -29,14 +30,15 @@ const RSA_SHA256 = { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' };
 async function issueWithExtensions(ca, commonName, extensions) {
     const keys = await webcrypto.subtle.generateKey({ ...RSA_SHA256, modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]) }, true, ['sign', 'verify']);
     const validity = { notBefore: new Date(Date.now() - 60_000), notAfter: new Date(Date.now() + 86_400_000) };
+    const name = commonName instanceof x509.Name ? commonName : new x509.Name(commonName ? [{ CN: [commonName] }] : []);
     let cert;
     if (ca) {
         const pkcs8 = Buffer.from(ca.key.replace(/-----[A-Z ]+-----/g, '').replace(/\s+/g, ''), 'base64');
         const signingKey = await webcrypto.subtle.importKey('pkcs8', pkcs8, RSA_SHA256, false, ['sign']);
         cert = await x509.X509CertificateGenerator.create({
             ...validity,
-            subject: commonName ? `CN=${commonName}` : '',
-            issuer: new x509.X509Certificate(ca.cert).subject,
+            subject: name,
+            issuer: new x509.X509Certificate(ca.cert).subjectName,
             signingAlgorithm: RSA_SHA256,
             publicKey: keys.publicKey,
             signingKey,
@@ -45,7 +47,7 @@ async function issueWithExtensions(ca, commonName, extensions) {
     } else {
         cert = await x509.X509CertificateGenerator.createSelfSigned({
             ...validity,
-            name: `CN=${commonName}`,
+            name,
             signingAlgorithm: RSA_SHA256,
             keys,
             extensions,
@@ -793,6 +795,60 @@ describe('helpers', () => {
             assert.equal(allowCA(pki.ca.cert)(pemToCertificate(selfSigned.cert)), false);
         });
 
+        // Keep the extension opaque to the fixture generator, then change its
+        // OID to basicConstraints. The certificate's outer DER remains valid;
+        // the invalid signature must not hide parsing work done before trust.
+        const malformedConstraints = async (value) => {
+            const fixture = await issueWithExtensions(pki.ca, 'Malformed Constraints', [
+                new x509.Extension('2.5.29.127', true, Buffer.from(value, 'hex')),
+            ]);
+            const raw = pemToDer(fixture.cert);
+            const oid = raw.indexOf(Buffer.from('0603551d7f', 'hex'));
+            assert.notEqual(oid, -1);
+            raw[oid + 4] = 0x13;
+            return { raw };
+        };
+
+        it('should reject oversized extension lengths without blocking validation', async () => {
+            const malformed = await malformedConstraints('300602847fffffff');
+            // A process timeout also works when synchronous validation blocks
+            // the event loop; a Jest timeout cannot interrupt that loop.
+            const result = spawnSync(process.execPath, ['--input-type=module', '-e', `
+                import assert from 'node:assert/strict';
+                import { allowCA } from ${JSON.stringify(new URL('../lib/helpers.js', import.meta.url).href)};
+                const { anchor, raw } = JSON.parse(process.argv[1]);
+                assert.equal(allowCA(anchor)({ raw: Buffer.from(raw, 'base64') }), false);
+                assert.throws(() => allowCA(Buffer.from(raw, 'base64')), /malformed DER/);
+            `, JSON.stringify({ anchor: pki.ca.cert, raw: malformed.raw.toString('base64') })], {
+                timeout: 3000,
+                encoding: 'utf8',
+            });
+            assert.equal(result.error, undefined, result.error?.message);
+            assert.equal(result.status, 0, result.stderr);
+        });
+
+        it('should fail closed on truncated, indefinite, and out-of-bounds extension lengths', async () => {
+            const invalid = [
+                '',                 // missing element header
+                '30',               // truncated element header
+                '3080',             // indefinite length
+                '308201',           // truncated long-form length
+                '308701010101010101', // length cannot fit any Node Buffer
+                '30820000',         // non-minimal long-form length
+                '308100',           // short length encoded in long form
+                '30810100',         // nonzero short length encoded in long form
+                '3003020201',       // integer content exceeds its sequence
+                '3005020100',       // sequence content exceeds its buffer
+                '300102',           // truncated child element header
+            ];
+            const verify = allowCA(pki.ca.cert);
+            for (const value of invalid) {
+                const malformed = await malformedConstraints(value);
+                assert.equal(verify(malformed), false, value);
+                assert.throws(() => allowCA(malformed.raw), /malformed DER/, value);
+            }
+        });
+
         it('should reject a certificate from a CA with the same subject name but a different key', () => {
             const cert = pemToCertificate(lookalike.client.cert);
             assert.equal(cert.issuer.CN, 'Test CA');
@@ -912,6 +968,78 @@ describe('helpers', () => {
             const rollover = await issueWithExtensions(root, 'Rollover CA', [bc(true, undefined)]);
             const leaf = await issueWithExtensions(rollover, 'Rollover Leaf', [bc(false, undefined)]);
             assert.equal(allowCA(root.cert)(chainOf(leaf.cert, rollover.cert, root.cert)), true);
+        });
+
+        it('should recognize self-issued rollover names with insignificant ASCII whitespace', async () => {
+            const bc = (ca, pathLen) => new x509.BasicConstraintsExtension(ca, pathLen, true);
+            const root = await issueWithExtensions(null, 'Rollover Root', [bc(true, 0)]);
+            for (const name of [' Rollover Root', 'Rollover Root ', '\tROLLOVER\n ROOT\r ']) {
+                const rollover = await issueWithExtensions(root, name, [bc(true, undefined)]);
+                const leaf = await issueWithExtensions(rollover, 'Rollover Leaf', [bc(false, undefined)]);
+                assert.equal(allowCA(root.cert)(chainOf(leaf.cert, rollover.cert)), true, JSON.stringify(name));
+            }
+        });
+
+        // The hex form preserves the requested ASN.1 string type, including
+        // types the fixture library does not expose through JsonNameParams.
+        const encodedCN = (tag, value) => new x509.Name(`CN=#${Buffer.concat([Buffer.from([tag, value.length]), value]).toString('hex')}`);
+
+        it.each([
+            ['PrintableString', 'Rollover Root', 0x13, Buffer.from(' ROLLOVER ROOT ')],
+            ['TeletexString', 'Rollover É', 0x14, Buffer.from(' ROLLOVER É ', 'latin1')],
+            ['IA5String', 'Rollover Root', 0x16, Buffer.from(' ROLLOVER ROOT ')],
+            ['BMPString', 'Rollover É', 0x1e, Buffer.from(' ROLLOVER É ', 'utf16le').swap16()],
+            ['UniversalString', 'CA É', 0x1c, Buffer.from('00000020000000630000006100000020000000c900000020', 'hex')],
+        ])('should recognize self-issued rollover names encoded as %s', async (_type, rootName, tag, value) => {
+            const bc = (ca, pathLen) => new x509.BasicConstraintsExtension(ca, pathLen, true);
+            const root = await issueWithExtensions(null, rootName, [bc(true, 0)]);
+            const rollover = await issueWithExtensions(root, encodedCN(tag, value), [bc(true, undefined)]);
+            const leaf = await issueWithExtensions(rollover, 'Rollover Leaf', [bc(false, undefined)]);
+            assert.equal(allowCA(root.cert)(chainOf(leaf.cert, rollover.cert)), true);
+        });
+
+        it('should reject name string types that the certificate decoder does not support', async () => {
+            // VisibleString is in OpenSSL's canonicalizer mask, but not its
+            // X509_NAME_ENTRY decoder mask. Such a Name never reaches comparison.
+            const cert = await issueWithExtensions(pki.ca, encodedCN(0x1a, Buffer.from('Visible Name')), []);
+            const raw = pemToDer(cert.cert);
+            assert.equal(allowCA(pki.ca.cert)({ raw }), false);
+            assert.throws(() => allowCA(raw));
+        });
+
+        it('should preserve the tag and bytes of name values that OpenSSL does not canonicalize', async () => {
+            const bc = (ca, pathLen) => new x509.BasicConstraintsExtension(ca, pathLen, true);
+            const numericName = encodedCN(0x12, Buffer.from('123')); // NumericString
+            const root = await issueWithExtensions(null, numericName, [bc(true, 0)]);
+            const rollover = await issueWithExtensions(root, numericName, [bc(true, undefined)]);
+            const leaf = await issueWithExtensions(rollover, 'Rollover Leaf', [bc(false, undefined)]);
+            assert.equal(allowCA(root.cert)(chainOf(leaf.cert, rollover.cert)), true);
+
+            for (const name of ['123', encodedCN(0x12, Buffer.from(' 123 '))]) {
+                const intermediate = await issueWithExtensions(root, name, [bc(true, undefined)]);
+                const under = await issueWithExtensions(intermediate, 'Rollover Leaf', [bc(false, undefined)]);
+                assert.equal(allowCA(root.cert)(chainOf(under.cert, intermediate.cert)), false);
+                assert.equal(allowCA(intermediate.cert)(pemToCertificate(under.cert)), true);
+            }
+        });
+
+        it.each([
+            ['attribute order within an RDN', [{ CN: ['Rollover'], O: ['Example'] }], [{ O: [' EXAMPLE '], CN: ['ROLLOVER'] }], true],
+            ['canonical ordering of repeated attributes', [{ CN: ['Rollover Z', 'Rollover a'] }], [{ CN: ['ROLLOVER A', 'ROLLOVER z'] }], true],
+            ['RDN grouping', [{ CN: ['Rollover'], O: ['Example'] }], [{ CN: ['Rollover'] }, { O: ['Example'] }], false],
+            ['RDN order', [{ O: ['Example'] }, { CN: ['Rollover'] }], [{ CN: ['Rollover'] }, { O: ['Example'] }], false],
+            ['attribute OIDs', [{ CN: ['Rollover'] }], [{ O: ['Rollover'] }], false],
+            ['literal delimiters inside a value', [{ CN: ['Rollover\nOU=CA'] }], [{ CN: ['Rollover'] }, { OU: ['CA'] }], false],
+            ['attribute multiplicity', [{ CN: ['Rollover', 'Rollover'] }], [{ CN: ['Rollover'] }], false],
+        ])('should compare rollover names respecting %s', async (_case, rootName, issuerName, selfIssued) => {
+            const bc = (ca, pathLen) => new x509.BasicConstraintsExtension(ca, pathLen, true);
+            const root = await issueWithExtensions(null, new x509.Name(rootName), [bc(true, 0)]);
+            const intermediate = await issueWithExtensions(root, new x509.Name(issuerName), [bc(true, undefined)]);
+            const leaf = await issueWithExtensions(intermediate, 'Rollover Leaf', [bc(false, undefined)]);
+            assert.equal(allowCA(root.cert)(chainOf(leaf.cert, intermediate.cert)), selfIssued);
+            // The same intermediate can authenticate its leaf when trusted
+            // directly, irrespective of the root's path-length restriction.
+            assert.equal(allowCA(intermediate.cert)(pemToCertificate(leaf.cert)), true);
         });
 
         it('should enforce pathLenConstraint on the anchor', async () => {

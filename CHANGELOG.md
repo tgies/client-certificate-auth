@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Security
+
+- **Bound DER extension parsing in `allowCA`** — malformed certificate extensions could declare content beyond their containing buffer and block synchronous validation before trust was checked. Invalid lengths now reject client certificates and produce a construction error for malformed configured CA certificates.
+
+### Fixed
+
+- **RFC 9440 accepts omitted Base64 padding** — certificate byte sequences now synthesize omitted padding as specified by RFC 8941, while rejecting malformed explicit padding, trailing data, and truncated certificate content.
+- **CA rollover names use encoded attributes** — `allowCA` now recognizes self-issued rollover certificates whose names differ only in insignificant ASCII whitespace or equivalent string encodings. Name comparison preserves RDN order, grouping, and non-ASCII distinctions when enforcing path-length limits.
+
+### Documentation
+
+- **Envoy external hops must sanitize XFCC** — the reverse-proxy guide now recommends `SANITIZE_SET` at the external trust boundary and reserves `FORWARD_ONLY` for trusted proxy hops after header sanitization.
+
 ## [2.2.0] - 2026-08-23
 
 ### Security
