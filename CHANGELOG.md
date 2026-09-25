@@ -7,18 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Several fixes below reject input that 2.2.0 accepted: misconfigured extractor options, repeated certificate header lines, headers carrying more than 10 certificates, bare base64 in RFC 9440 headers, and URI SANs that differ only in path case. See **Changed** and **Security**.
+
 ### Security
 
-- **Bound DER extension parsing in `allowCA`** — malformed certificate extensions could declare content beyond their containing buffer and block synchronous validation before trust was checked. Invalid lengths now reject client certificates and produce a construction error for malformed configured CA certificates.
+- **Quoted semicolons in XFCC could inject a certificate** ([#229](https://github.com/tgies/client-certificate-auth/pull/229)) — `parseXfcc` split each element on every semicolon, but Envoy quotes any field whose value contains one, so a client whose Subject DN carried `;Cert=...` could add a pair that overrode the one Envoy wrote. Pairs are now split only on semicolons outside quoted values, an element that leaves a quote open is rejected, and an element carrying `Cert` or `Chain` twice is rejected. A value ending in a backslash is ambiguous on the wire and is rejected.
+- **Repeated certificate header lines are rejected** ([#220](https://github.com/tgies/client-certificate-auth/pull/220)) — Node joins repeated header lines with `, `, and every encoding read the first value, so a client-supplied line won whenever a proxy appended its header instead of replacing it. The extractor now counts the certificate and verification header names in `req.rawHeaders` and fails closed when either appears more than once; the Fetch adapter applies the same check to the entries it iterates. `url-pem` and `url-pem-aws` reject a value containing a literal comma, and `base64-der` rejects one unless the preset sets the new `chainInLeafHeader` flag (only `traefik` does). `Client-Cert-Chain` repeats are still combined, as RFC 9440 allows. `parseRfc9440` accepts only an RFC 8941 byte sequence (`:base64:`), and `derToCertificate` rejects trailing bytes after the certificate.
+- **Certificates per header capped at `MAX_CHAIN_CERTS`** ([#221](https://github.com/tgies/client-certificate-auth/pull/221)) — `parseBase64Der` attempted a parse for every comma-separated entry, so a 16 KB header of commas cost about 80 ms of synchronous work before authorization. A header value now carries at most 10 certificates, checked before parsing, with the leaf and chain headers counting toward the same limit. `MAX_CHAIN_CERTS` is exported from `client-certificate-auth/parsers`.
+- **Bound DER extension parsing in `allowCA`** ([#240](https://github.com/tgies/client-certificate-auth/pull/240)) — malformed certificate extensions could declare content beyond their containing buffer and block synchronous validation before trust was checked. Invalid lengths now reject client certificates and produce a construction error for malformed configured CA certificates.
+
+### Added
+
+- **`allowCA(caCertificates, { maxDepth })`** ([#209](https://github.com/tgies/client-certificate-auth/pull/209)) — a validation helper that accepts a certificate issued by one of the given PEM or DER CA certificates, directly or through the `issuerCertificate` chain from `includeChain: true`. It checks issuer name and signature at every link, `keyCertSign`, `basicConstraints` cA on every CA including the anchor, `pathLenConstraint`, `clientAuth` in every extended key usage on the path, the leaf's `keyUsage`, and validity windows. It rejects name constraints and unprocessed critical extensions. It does not check revocation. The existing helpers compare fields a self-signed certificate can claim, so this is the first helper that establishes trust behind a passthrough proxy.
+
+### Changed
+
+- **Extractor options are validated strictly** ([#223](https://github.com/tgies/client-certificate-auth/pull/223)) — `certificateHeader`, `chainHeader`, `verifyHeader`, and `verifyValue` must be non-empty strings, `fallbackToSocket` and `includeChain` must be booleans, `verifyHeader`/`verifyValue` require `certificateSource` or `certificateHeader`, hooks must be functions, and an options argument that is not a plain object throws a `TypeError`. Each of these was previously accepted: an empty-string verify pair skipped verification, and `fallbackToSocket: 'false'` enabled the fallback.
+- **Unprefixed 64-hex fingerprints are SHA-256** ([#207](https://github.com/tgies/client-certificate-auth/pull/207)) — `allowFingerprints` compared every unprefixed value against `cert.fingerprint` (SHA-1), so a SHA-256 digest without the `SHA256:` prefix never matched. Unprefixed values of 64 hex digits now compare against `fingerprint256`.
+- **`allowSAN` keeps URI paths case-sensitive** ([#205](https://github.com/tgies/client-certificate-auth/pull/205)) — whole SAN entries were lowercased, so a URI allowlist entry matched a certificate whose URI differed only in path case. URIs now fold only scheme and host. `allowSAN` and `allowEmail` also decode the JSON-quoted form Node uses for values containing commas or quotes, which previously never matched, and `IP:` is accepted for `IP Address:`.
 
 ### Fixed
 
-- **RFC 9440 accepts omitted Base64 padding** — certificate byte sequences now synthesize omitted padding as specified by RFC 8941, while rejecting malformed explicit padding, trailing data, and truncated certificate content.
-- **CA rollover names use encoded attributes** — `allowCA` now recognizes self-issued rollover certificates whose names differ only in insignificant ASCII whitespace or equivalent string encodings. Name comparison preserves RDN order, grouping, and non-ASCII distinctions when enforcing path-length limits.
+- **XFCC keys are case-insensitive** ([#206](https://github.com/tgies/client-certificate-auth/pull/206)) — `parseXfcc` recognized only `Cert` and `Chain` with that capitalization, so `cert=` or `CHAIN=` read as no certificate.
+- **A frozen error thrown from the callback left the request hanging** ([#201](https://github.com/tgies/client-certificate-auth/pull/201)) — assigning `err.status = 401` to a frozen, sealed, or getter-only error threw, so the sync path escaped the middleware, the async path became an unhandled rejection, and `next()` never ran. Such an error is now replaced by a new `Error` with status 401 and the original as `cause`.
+- **`next()` ran twice when a downstream handler threw** ([#219](https://github.com/tgies/client-certificate-auth/pull/219)) — both paths treated an exception from `next()` as a callback failure and called `next(err)` again. Downstream throws now propagate to the caller.
+- **Missing or non-iterable request headers threw** ([#202](https://github.com/tgies/client-certificate-auth/pull/202)) — `extractClientCertificate` and the Fetch adapter now fail closed with `header_missing_or_malformed` (or `verification_header_mismatch` when a verify header is configured) instead of throwing a `TypeError`.
+- **A throwing socket read escaped the extractor** ([#203](https://github.com/tgies/client-certificate-auth/pull/203)) — reads of `req.socket`, `authorized`, and `getPeerCertificate` are guarded in the ESM extractor and the CJS middleware. An unreadable socket reports `socket_not_authorized`; a throw from `getPeerCertificate` reports `certificate_not_retrievable`.
+- **Rejections with an unmapped reason had an empty message** ([#208](https://github.com/tgies/client-certificate-auth/pull/208)) — the message now defaults to `Unauthorized`.
+- **CJS rejected unsupported options set to `undefined`** ([#204](https://github.com/tgies/client-certificate-auth/pull/204)) — `{ certificateSource: undefined }` threw the unsupported-option error. Only options with a defined value count.
+- **RFC 9440 accepts omitted Base64 padding** ([#240](https://github.com/tgies/client-certificate-auth/pull/240)) — certificate byte sequences now synthesize omitted padding as specified by RFC 8941, while rejecting malformed explicit padding, trailing data, and truncated certificate content.
+- **CA rollover names use encoded attributes** ([#240](https://github.com/tgies/client-certificate-auth/pull/240)) — `allowCA` now recognizes self-issued rollover certificates whose names differ only in insignificant ASCII whitespace or equivalent string encodings. Name comparison preserves RDN order, grouping, and non-ASCII distinctions when enforcing path-length limits.
+
+### Types
+
+- **`ExtractionResult` is a discriminated union** ([#222](https://github.com/tgies/client-certificate-auth/pull/222)) — `ExtractionResult` and `LambdaExtractionResult` declared `success: boolean` with independently nullable `certificate` and `reason`, so `if (result.success) result.certificate.subject` was `TS18047` under strict mode. Both now narrow on `success`, with rejection codes typed as the new `ExtractionFailureReason` and `LambdaExtractionFailureReason`.
+- `PresetConfig` gains the optional `chainInLeafHeader` flag, and `parsers.d.ts` declares `MAX_CHAIN_CERTS`.
 
 ### Documentation
 
-- **Envoy external hops must sanitize XFCC** — the reverse-proxy guide now recommends `SANITIZE_SET` at the external trust boundary and reserves `FORWARD_ONLY` for trusted proxy hops after header sanitization.
+- **Passthrough proxies require signature verification or pinning** ([#224](https://github.com/tgies/client-certificate-auth/pull/224)) — the passthrough warnings told readers to match the issuer against an expected CA, which `allowIssuer` cannot do. They now name the sources of trust (proxy-side validation, `allowCA`, or `allowFingerprints`), and the chain and Fetch examples use `allowCA` or ALB verify mode.
+- **Envoy external hops must sanitize XFCC** ([#240](https://github.com/tgies/client-certificate-auth/pull/240)) — the reverse-proxy guide now recommends `SANITIZE_SET` at the external trust boundary and reserves `FORWARD_ONLY` for trusted proxy hops after header sanitization.
+- **Certificate chain missing on Node.js 26.8.x** ([#226](https://github.com/tgies/client-certificate-auth/pull/226)) — Node 26.8.0 stopped returning the peer chain from `getPeerCertificate(true)` on the server ([nodejs/node#65579](https://github.com/nodejs/node/issues/65579)), so socket-path `includeChain` yields a leaf without `issuerCertificate`. The troubleshooting guide lists workarounds; header-path chains are unaffected.
+- **Corrections** ([#218](https://github.com/tgies/client-certificate-auth/pull/218), [#216](https://github.com/tgies/client-certificate-auth/pull/216)) — the nginx verification snippet uses a `map` (`proxy_set_header` is not allowed inside `if`), the Koa example accepts only `true`, the CJS subpath lists include `/lambda` and `/fetch`, the helpers guide states that `allOf` and `anyOf` do not short-circuit, and the `ClientCertResponse` typedef no longer claims a `redirect` method.
+- The 1.3.5 through 1.3.8 maintenance-line entries are now in this file ([#215](https://github.com/tgies/client-certificate-auth/pull/215)).
+
+### Tests
+
+- The E2E suite sends forged certificate headers through every proxy and requires the handshake certificate to win, including nginx and Traefik in optional-verification mode ([#210](https://github.com/tgies/client-certificate-auth/pull/210)). Under CI it fails when Docker is missing instead of skipping.
+- Replaced extractor tests that passed without exercising their subject, and dropped a wall-clock assertion from the hook tests ([#217](https://github.com/tgies/client-certificate-auth/pull/217)).
 
 ## [2.2.0] - 2026-08-23
 
@@ -370,6 +406,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix handling of empty certificates
 - Unit testing with mocks
 
+[Unreleased]: https://github.com/tgies/client-certificate-auth/compare/v2.2.0...HEAD
 [2.2.0]: https://github.com/tgies/client-certificate-auth/compare/v2.1.3...v2.2.0
 [2.1.3]: https://github.com/tgies/client-certificate-auth/compare/v2.1.2...v2.1.3
 [2.1.2]: https://github.com/tgies/client-certificate-auth/compare/v2.1.1...v2.1.2
