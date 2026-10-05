@@ -1,3 +1,4 @@
+import 'reflect-metadata';
 import assert from 'node:assert/strict';
 import { webcrypto } from 'node:crypto';
 import { X509CertificateGenerator } from '@peculiar/x509';
