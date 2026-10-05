@@ -110,7 +110,7 @@
     "eslint": "^10.2.1",
     "globals": "^17.5.0",
     "husky": "^9.1.7",
-    "jest": "30.4.2",
+    "jest": "30.5.1",
     "lint-staged": "^17.0.4",
     "publint": "^0.3.24",
     "selfsigned": "^5.5.0",
