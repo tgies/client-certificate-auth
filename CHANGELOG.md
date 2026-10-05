@@ -5,12 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.3.0] - 2026-10-05
 
 Several fixes below reject input that 2.2.0 accepted: misconfigured extractor options, repeated certificate header lines, headers carrying more than 10 certificates, bare base64 in RFC 9440 headers, and URI SANs that differ only in path case. See **Changed** and **Security**.
 
 ### Security
 
+- **Typed `allowSAN` entries matched values of a different SAN type** ([#205](https://github.com/tgies/client-certificate-auth/pull/205), [GHSA-vhr5-98cq-p3qx](https://github.com/tgies/client-certificate-auth/security/advisories/GHSA-vhr5-98cq-p3qx)) — the comparator compared the part of each SAN entry after its first colon against the allowlist, so a certificate whose only SAN was the URI `dns:api.example.com` satisfied `allowSAN(['DNS:api.example.com'])`, and the same substitution worked for `email:` entries. A prefixed allowlist entry now matches only a SAN of that type. Bare entries still match under any type. Whole SAN entries were also lowercased, so a URI allowlist entry matched a certificate whose URI differed only in path case. URIs now fold only scheme and host. `allowSAN` and `allowEmail` decode the JSON-quoted form Node uses for values containing commas or quotes, which previously never matched, and `IP:` is accepted for `IP Address:`.
 - **Quoted semicolons in XFCC could inject a certificate** ([#229](https://github.com/tgies/client-certificate-auth/pull/229)) — `parseXfcc` split each element on every semicolon, but Envoy quotes any field whose value contains one, so a client whose Subject DN carried `;Cert=...` could add a pair that overrode the one Envoy wrote. Pairs are now split only on semicolons outside quoted values, an element that leaves a quote open is rejected, and an element carrying `Cert` or `Chain` twice is rejected. A value ending in a backslash is ambiguous on the wire and is rejected.
 - **Repeated certificate header lines are rejected** ([#220](https://github.com/tgies/client-certificate-auth/pull/220)) — Node joins repeated header lines with `, `, and every encoding read the first value, so a client-supplied line won whenever a proxy appended its header instead of replacing it. The extractor now counts the certificate and verification header names in `req.rawHeaders` and fails closed when either appears more than once; the Fetch adapter applies the same check to the entries it iterates. `url-pem` and `url-pem-aws` reject a value containing a literal comma, and `base64-der` rejects one unless the preset sets the new `chainInLeafHeader` flag (only `traefik` does). `Client-Cert-Chain` repeats are still combined, as RFC 9440 allows. `parseRfc9440` accepts only an RFC 8941 byte sequence (`:base64:`), and `derToCertificate` rejects trailing bytes after the certificate.
 - **Certificates per header capped at `MAX_CHAIN_CERTS`** ([#221](https://github.com/tgies/client-certificate-auth/pull/221)) — `parseBase64Der` attempted a parse for every comma-separated entry, so a 16 KB header of commas cost about 80 ms of synchronous work before authorization. A header value now carries at most 10 certificates, checked before parsing, with the leaf and chain headers counting toward the same limit. `MAX_CHAIN_CERTS` is exported from `client-certificate-auth/parsers`.
@@ -24,7 +25,6 @@ Several fixes below reject input that 2.2.0 accepted: misconfigured extractor op
 
 - **Extractor options are validated strictly** ([#223](https://github.com/tgies/client-certificate-auth/pull/223)) — `certificateHeader`, `chainHeader`, `verifyHeader`, and `verifyValue` must be non-empty strings, `fallbackToSocket` and `includeChain` must be booleans, `verifyHeader`/`verifyValue` require `certificateSource` or `certificateHeader`, hooks must be functions, and an options argument that is not a plain object throws a `TypeError`. Each of these was previously accepted: an empty-string verify pair skipped verification, and `fallbackToSocket: 'false'` enabled the fallback.
 - **Unprefixed 64-hex fingerprints are SHA-256** ([#207](https://github.com/tgies/client-certificate-auth/pull/207)) — `allowFingerprints` compared every unprefixed value against `cert.fingerprint` (SHA-1), so a SHA-256 digest without the `SHA256:` prefix never matched. Unprefixed values of 64 hex digits now compare against `fingerprint256`.
-- **`allowSAN` keeps URI paths case-sensitive** ([#205](https://github.com/tgies/client-certificate-auth/pull/205)) — whole SAN entries were lowercased, so a URI allowlist entry matched a certificate whose URI differed only in path case. URIs now fold only scheme and host. `allowSAN` and `allowEmail` also decode the JSON-quoted form Node uses for values containing commas or quotes, which previously never matched, and `IP:` is accepted for `IP Address:`.
 
 ### Fixed
 
@@ -406,7 +406,8 @@ Several fixes below reject input that 2.2.0 accepted: misconfigured extractor op
 - Fix handling of empty certificates
 - Unit testing with mocks
 
-[Unreleased]: https://github.com/tgies/client-certificate-auth/compare/v2.2.0...HEAD
+[Unreleased]: https://github.com/tgies/client-certificate-auth/compare/v2.3.0...HEAD
+[2.3.0]: https://github.com/tgies/client-certificate-auth/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/tgies/client-certificate-auth/compare/v2.1.3...v2.2.0
 [2.1.3]: https://github.com/tgies/client-certificate-auth/compare/v2.1.2...v2.1.3
 [2.1.2]: https://github.com/tgies/client-certificate-auth/compare/v2.1.1...v2.1.2
