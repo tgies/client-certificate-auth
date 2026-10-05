@@ -18,7 +18,7 @@ import { pemToCertificate } from '../lib/parsers.js';
 import { generateMtlsCertificates, generateIntermediateChain, generateClientCertificate, pemToDer } from './test-helpers.js';
 import selfsigned from 'selfsigned';
 import * as x509 from '@peculiar/x509';
-import { webcrypto } from 'node:crypto';
+import { webcrypto, X509Certificate } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 
 const RSA_SHA256 = { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' };
@@ -610,6 +610,48 @@ describe('helpers', () => {
         it('should not match a typed value against a different SAN type', () => {
             assert.equal(allowSAN(['DNS:alt@example.com'])(mockCert), false);
             assert.equal(allowSAN(['email:test.example.com'])(mockCert), false);
+        });
+
+        it.each([
+            ['DNS:api.example.com', 'URI:dns:api.example.com'],
+            ['email:ops@example.com', 'URI:email:ops@example.com'],
+        ])('should reject the advisory type-confusion payload %s from %s', (allowed, subjectaltname) => {
+            assert.equal(allowSAN([allowed])({ subjectaltname }), false);
+        });
+
+        it('should require the outer SAN type to match every typed allowlist entry', () => {
+            const types = ['DNS', 'email', 'URI', 'IP Address', 'DirName', 'Registered ID', 'othername'];
+            for (const allowedType of types) {
+                const allowed = `${allowedType}:identity.example`;
+                assert.equal(allowSAN([allowed])({ subjectaltname: allowed }), true, allowedType);
+                for (const certificateType of types) {
+                    if (certificateType === allowedType) {continue;}
+                    const subjectaltname = `${certificateType}:${allowed}`;
+                    assert.equal(
+                        allowSAN([allowed])({ subjectaltname }),
+                        false,
+                        `${certificateType} SAN must not satisfy a ${allowedType} allowlist entry`
+                    );
+                }
+            }
+
+            // Bare entries intentionally match the same value under any SAN type.
+            assert.equal(allowSAN(['api.example.com'])({ subjectaltname: 'URI:api.example.com' }), true);
+        });
+
+        it('should reject typed allowlist entries imitated by URI SANs in a real certificate', async () => {
+            const fixture = await issueWithExtensions(null, 'Type Confusion Client', [
+                new x509.SubjectAlternativeNameExtension([
+                    new x509.GeneralName('url', 'dns:api.example.com'),
+                    new x509.GeneralName('url', 'email:ops@example.com'),
+                ]),
+            ]);
+            const cert = new X509Certificate(fixture.cert).toLegacyObject();
+
+            assert.equal(cert.subjectaltname, 'URI:dns:api.example.com, URI:email:ops@example.com');
+            assert.equal(allowSAN(['DNS:api.example.com'])(cert), false);
+            assert.equal(allowSAN(['email:ops@example.com'])(cert), false);
+            assert.equal(allowSAN(['URI:dns:api.example.com'])(cert), true);
         });
 
         it('should accept IP: as an alias for IP Address:', () => {
