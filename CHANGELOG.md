@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.9] - 2026-10-05
+
+### Security
+
+- **`allowSAN` enforces type prefixes** (backport of [#205](https://github.com/tgies/client-certificate-auth/pull/205)) — an allowlist entry with a type prefix now matches only a SAN of that type; bare entries still match under any type. `allowSAN` and `allowEmail` also decode the JSON-quoted form Node uses for values containing commas or quotes, URIs fold only scheme and host, and `IP:` is accepted for `IP Address:`.
+- **XFCC pairs are split only on semicolons outside quotes** (backport of [#229](https://github.com/tgies/client-certificate-auth/pull/229)) — an element that leaves a quoted value open is rejected, as is one carrying `Cert` or `Chain` twice.
+
 ## [1.3.8] - 2026-08-25
 
 ### Security
@@ -231,6 +238,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix handling of empty certificates
 - Unit testing with mocks
 
+[1.3.9]: https://github.com/tgies/client-certificate-auth/compare/v1.3.8...v1.3.9
 [1.3.8]: https://github.com/tgies/client-certificate-auth/compare/v1.3.7...v1.3.8
 [1.3.7]: https://github.com/tgies/client-certificate-auth/compare/v1.3.6...v1.3.7
 [1.3.6]: https://github.com/tgies/client-certificate-auth/compare/v1.3.5...v1.3.6
