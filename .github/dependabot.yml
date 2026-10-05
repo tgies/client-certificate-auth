@@ -10,6 +10,10 @@ updates:
       time: "09:00"
       timezone: "America/Chicago"
     versioning-strategy: "increase-if-necessary"
+    ignore:
+      # 30.5.2 breaks HTTPS setup between suites on Node 20; 30.4.2 passes.
+      - dependency-name: "jest"
+        versions: ["30.5.2"]
     cooldown:
       default-days: 7
       semver-major-days: 14
